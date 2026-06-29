@@ -726,6 +726,40 @@ const SettingsPanel = memo(({
                     className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 focus:outline-none focus:border-orange-500/50"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-orange-200 mb-2">
+                    Model
+                  </label>
+                  {availableModels.length > 0 ? (
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => onSelectedModelChange(e.target.value)}
+                      className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 focus:outline-none focus:border-orange-500/50"
+                    >
+                      {!availableModels.includes(selectedModel) && (
+                        <option value={selectedModel}>{selectedModel}</option>
+                      )}
+                      {availableModels.map((model) => (
+                        <option key={model} value={model}>
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={selectedModel}
+                      onChange={(e) => onSelectedModelChange(e.target.value)}
+                      placeholder="qwen2.5-coder:14b"
+                      className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 focus:outline-none focus:border-orange-500/50"
+                    />
+                  )}
+                  <p className="text-xs text-orange-400/70 mt-1">
+                    {availableModels.length > 0 
+                      ? `${availableModels.length} model(s) available` 
+                      : 'Enter model name or connect to Ollama to see available models'}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1204,7 +1238,11 @@ const GenerationPanel = memo(({
   isGenerating,
   onSelectTemplate,
   showTemplates,
-  setShowTemplates
+  setShowTemplates,
+  userTemplates,
+  onSaveTemplate,
+  onSelectUserTemplate,
+  onDeleteUserTemplate
 }) => {
   // Group templates by category
   const templatesByCategory = useMemo(() => {
@@ -1252,6 +1290,37 @@ const GenerationPanel = memo(({
               </div>
             </div>
           ))}
+          
+          {/* User Templates Section */}
+          {userTemplates.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-purple-500/30">
+              <h4 className="text-sm font-semibold text-green-300 mb-2 uppercase tracking-wide">
+                ⭐ My Templates
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {userTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    className="group relative"
+                  >
+                    <button
+                      onClick={() => onSelectUserTemplate(template)}
+                      className="w-full px-3 py-2 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/40 text-green-200 rounded-lg transition-all text-left text-sm pr-8"
+                    >
+                      {template.name}
+                    </button>
+                    <button
+                      onClick={(e) => onDeleteUserTemplate(template.id, e)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-red-400/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete template"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1259,12 +1328,23 @@ const GenerationPanel = memo(({
         value={prompt}
         onChange={(e) => onPromptChange(e.target.value)}
         placeholder="Describe the website you want to create... (or select a template above)"
-        className="w-full h-48 px-4 py-3 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 resize-none focus:outline-none focus:border-orange-500/50 mb-4"
+        className="w-full h-48 px-4 py-3 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 resize-none focus:outline-none focus:border-orange-500/50 mb-3"
       />
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={onSaveTemplate}
+          disabled={!prompt.trim()}
+          className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          ⭐ Save as Template
+        </button>
+      </div>
 
       <button
         onClick={onGenerate}
         disabled={isGenerating || !prompt.trim()}
+        data-shortcut="generate"
         className="w-full py-4 px-6 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {isGenerating ? (
@@ -1309,6 +1389,7 @@ const ChatInterface = memo(({
         {canUndo && (
           <button
             onClick={onUndo}
+            data-shortcut="undo"
             className="px-3 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
           >
             <Undo className="w-4 h-4" />
@@ -1369,7 +1450,8 @@ const FileBrowser = memo(({
   onSelectFile,
   onDownloadAll,
   onDownloadZip,
-  onOpenDeployModal
+  onOpenDeployModal,
+  generationStats
 }) => {
   const hasFiles = files.length > 0
 
@@ -1384,6 +1466,7 @@ const FileBrowser = memo(({
           <div className="flex gap-2">
             <button
               onClick={onDownloadZip}
+              data-shortcut="download-zip"
               className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
             >
               <Archive className="w-4 h-4" />
@@ -1408,21 +1491,30 @@ const FileBrowser = memo(({
       </div>
 
       {hasFiles ? (
-        <div className="flex gap-2 flex-wrap">
-          {files.map((file) => (
-            <button
-              key={file.name}
-              onClick={() => onSelectFile(file)}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
-                selectedFile?.name === file.name
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg'
-                  : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
-              }`}
-            >
-              <FileCode className="w-4 h-4" />
-              {file.name}
-            </button>
-          ))}
+        <div className="space-y-3">
+          <div className="flex gap-2 flex-wrap">
+            {files.map((file) => (
+              <button
+                key={file.name}
+                onClick={() => onSelectFile(file)}
+                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
+                  selectedFile?.name === file.name
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg'
+                    : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
+                }`}
+              >
+                <FileCode className="w-4 h-4" />
+                {file.name}
+              </button>
+            ))}
+          </div>
+          {generationStats && (
+            <div className="flex gap-4 text-xs text-blue-300/70 pt-2 border-t border-blue-500/20">
+              <span>⏱️ {generationStats.time}s</span>
+              <span>📝 {generationStats.tokens.toLocaleString()} tokens</span>
+              <span>⚡ {generationStats.speed} tok/s</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-8 text-blue-300">
@@ -1482,7 +1574,7 @@ const PreviewPanel = memo(({
       </div>
 
       {selectedFile ? (
-        <div className="flex-1 overflow-hidden rounded-lg border border-green-500/20 min-h-0">
+        <div className="flex-1 overflow-hidden rounded-lg border border-green-500/20 min-h-0 max-h-[calc(100vh-350px)]">
           {(previewMode === 'live' && shouldShowLivePreview()) ? (
             <iframe
               ref={iframeRef}
@@ -1519,6 +1611,7 @@ function AIWebsitePowerhouse() {
   const [chatHistory, setChatHistory] = useState([])
   const [chatMessage, setChatMessage] = useState('')
   const [codeHistory, setCodeHistory] = useState([])
+  const [userTemplates, setUserTemplates] = useState([])
   
   // UI State
   const [showSettings, setShowSettings] = useState(false)
@@ -1553,6 +1646,13 @@ function AIWebsitePowerhouse() {
   const [topP, setTopP] = useState(0.9)
   const [topK, setTopK] = useState(40)
   
+  // Model Selection
+  const [selectedModel, setSelectedModel] = useState('qwen3-coder:480b-cloud')
+  const [availableModels, setAvailableModels] = useState([])
+  
+  // Generation Stats
+  const [generationStats, setGenerationStats] = useState(null)
+  
   // GitHub State
   const [isGithubProcessing, setIsGithubProcessing] = useState(false)
   const [repoName, setRepoName] = useState('')
@@ -1565,6 +1665,22 @@ function AIWebsitePowerhouse() {
   // Refs
   const iframeRef = useRef(null)
 
+  // Fetch available models from Ollama
+  const fetchAvailableModels = useCallback(async (url) => {
+    try {
+      const response = await fetch(`${url}/api/tags`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.models && Array.isArray(data.models)) {
+          setAvailableModels(data.models.map(m => m.name))
+        }
+      }
+    } catch (error) {
+      console.log('Could not fetch models from Ollama:', error.message)
+      // Not critical - user can still type model name manually
+    }
+  }, [])
+
   // Load saved settings on mount
   useEffect(() => {
     const savedUrl = localStorage.getItem('ollamaUrl')
@@ -1572,6 +1688,7 @@ function AIWebsitePowerhouse() {
     const savedSupabaseKey = localStorage.getItem('supabaseKey')
     const savedGithubUsername = localStorage.getItem('githubUsername')
     const savedGithubToken = localStorage.getItem('githubToken')
+    const savedModel = localStorage.getItem('selectedModel')
     
     if (savedUrl) setOllamaUrl(savedUrl)
     if (savedSupabaseUrl) setSupabaseUrl(savedSupabaseUrl)
@@ -1584,6 +1701,20 @@ function AIWebsitePowerhouse() {
       setGithubToken(savedGithubToken)
       setGithubEnabled(true)
     }
+    if (savedModel) setSelectedModel(savedModel)
+
+    // Load user templates
+    const savedUserTemplates = localStorage.getItem('aiwebsite_user_templates')
+    if (savedUserTemplates) {
+      try {
+        setUserTemplates(JSON.parse(savedUserTemplates))
+      } catch {
+        // Ignore malformed data
+      }
+    }
+
+    // Fetch available models from Ollama
+    fetchAvailableModels(savedUrl || 'http://localhost:11434')
 
     // AI Provider hydration
     const savedProvider = localStorage.getItem('aiProvider')
@@ -1613,7 +1744,7 @@ function AIWebsitePowerhouse() {
     if (savedWork) {
       setShowRestoreModal(true)
     }
-  }, [])
+  }, [fetchAvailableModels])
 
   // Auto-save with debounce
   const saveToHistory = useMemo(
@@ -1635,6 +1766,46 @@ function AIWebsitePowerhouse() {
       saveToHistory(generatedFiles, generatedCode, chatHistory)
     }
   }, [generatedFiles, generatedCode, chatHistory, saveToHistory])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+Enter or Cmd+Enter: Generate website
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        // Trigger generate button click if conditions are met
+        const generateBtn = document.querySelector('[data-shortcut="generate"]')
+        if (generateBtn && !generateBtn.disabled) {
+          generateBtn.click()
+        }
+      }
+      
+      // Ctrl+S or Cmd+S: Download as ZIP
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        const zipBtn = document.querySelector('[data-shortcut="download-zip"]')
+        if (zipBtn && !zipBtn.disabled) {
+          zipBtn.click()
+        }
+      }
+      
+      // Ctrl+Z or Cmd+Z: Undo (only when not in input/textarea)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        const activeEl = document.activeElement
+        const isInInput = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA'
+        if (!isInInput) {
+          e.preventDefault()
+          const undoBtn = document.querySelector('[data-shortcut="undo"]')
+          if (undoBtn && !undoBtn.disabled) {
+            undoBtn.click()
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Restore saved work
   const restoreSavedWork = useCallback(() => {
@@ -1667,6 +1838,14 @@ function AIWebsitePowerhouse() {
   const handleOllamaUrlChange = useCallback((newUrl) => {
     setOllamaUrl(newUrl)
     localStorage.setItem('ollamaUrl', newUrl)
+    // Fetch available models from new URL
+    fetchAvailableModels(newUrl)
+  }, [fetchAvailableModels])
+
+  // Handle model selection change
+  const handleModelChange = useCallback((modelName) => {
+    setSelectedModel(modelName)
+    localStorage.setItem('selectedModel', modelName)
   }, [])
 
   // Save Supabase settings
@@ -1707,7 +1886,6 @@ function AIWebsitePowerhouse() {
     localStorage.setItem('openrouterMaxTokens', String(openrouterMaxTokens))
     alert('OpenRouter settings saved!')
   }, [openrouterKey, openrouterModel, openrouterCustomSlug, openrouterMaxTokens])
-
   // Detect and split files
   //
   // Splits a multi-file LLM response into discrete files. Robust against
@@ -1840,15 +2018,62 @@ function AIWebsitePowerhouse() {
         files.push({ name: filename, content: cleaned })
       }
     }
+      }
+    }
 
     return files
-  }, [])
+  }, [cleanupLLMOutput])
 
   // Select template
   const handleSelectTemplate = useCallback((templateKey) => {
     const template = PROMPT_TEMPLATES[templateKey]
     setPrompt(template.prompt)
     setShowTemplates(false)
+  }, [])
+
+  // Select user template
+  const handleSelectUserTemplate = useCallback((template) => {
+    setPrompt(template.prompt)
+    setShowTemplates(false)
+  }, [])
+
+  // Save current prompt as user template
+  const saveUserTemplate = useCallback(() => {
+    if (!prompt.trim()) {
+      alert('Please enter a prompt first')
+      return
+    }
+    
+    const templateName = window.prompt('Enter a name for this template:')
+    if (!templateName?.trim()) return
+    
+    const newTemplate = {
+      id: Date.now().toString(),
+      name: templateName.trim(),
+      prompt: prompt.trim(),
+      createdAt: Date.now()
+    }
+    
+    setUserTemplates(prev => {
+      const updated = [...prev, newTemplate]
+      localStorage.setItem('aiwebsite_user_templates', JSON.stringify(updated))
+      return updated
+    })
+    
+    alert(`Template "${templateName}" saved!`)
+  }, [prompt])
+
+  // Delete user template
+  const deleteUserTemplate = useCallback((templateId, e) => {
+    e.stopPropagation() // Prevent selecting the template
+    
+    if (!confirm('Delete this template?')) return
+    
+    setUserTemplates(prev => {
+      const updated = prev.filter(t => t.id !== templateId)
+      localStorage.setItem('aiwebsite_user_templates', JSON.stringify(updated))
+      return updated
+    })
   }, [])
 
   const handleGenerate = useCallback(async () => {
@@ -1860,6 +2085,10 @@ function AIWebsitePowerhouse() {
     setSelectedFile(null)
     setChatHistory([])
     setCodeHistory([])
+    setGenerationStats(null)
+    
+    const startTime = Date.now()
+    let tokenCount = 0
 
     const requiresBackend = needsBackend
     const canUseSupabase = supabaseEnabled && supabaseUrl && supabaseKey
@@ -2059,7 +2288,7 @@ FINAL REMINDER: Output begins with the first character of code. Output ends with
     } finally {
       setIsGenerating(false)
     }
-  }, [
+  ], [
     prompt,
     needsBackend,
     supabaseEnabled,
@@ -2122,6 +2351,11 @@ SUPABASE IS AVAILABLE:
     }
 
     modifyPrompt += `
+
+CRITICAL OUTPUT RULES:
+- Keep ALL CSS in <style> tags and ALL JavaScript in <script> tags (inline, not external files)
+- Do NOT add external file references like <link href="styles.css"> or <script src="script.js">
+- For images: Use real URLs like https://placehold.co/800x600 - never raw template literals like \${item.image}
 
 IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated seamlessly. If there are multiple files, use the same FILE: marker format. Return ONLY the code, nothing else.`
 
@@ -2192,7 +2426,7 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
     } finally {
       setIsGenerating(false)
     }
-  }, [
+  ], [
     chatMessage,
     generatedCode,
     generatedFiles,
@@ -2335,16 +2569,26 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
 
     let content = htmlFile.content
 
-    // Inject CSS
+    // Remove external CSS links that would fail in iframe (keep CDN/http links)
+    content = content.replace(/<link[^>]*href=["'](?!https?:\/\/)[^"']*\.css["'][^>]*\/?>/gi, '')
+    
+    // Remove external JS script tags that would fail in iframe (keep CDN/http links)
+    content = content.replace(/<script[^>]*src=["'](?!https?:\/\/)[^"']*\.js["'][^>]*><\/script>/gi, '')
+
+    // Fix unresolved template literals like ${item.image} - replace with placeholder images
+    content = content.replace(/\$\{[^}]*image[^}]*\}/gi, 'https://placehold.co/400x300?text=Image')
+    content = content.replace(/\$\{[^}]*\}/g, 'Placeholder')
+
+    // Inject CSS from generated files
     const cssFile = generatedFiles.find(f => f.name.endsWith('.css'))
     if (cssFile) {
-      content = content.replace('</head>', `<style>${cssFile.content}</style></head>`)
+      content = content.replace('</head>', `<style>\n${cssFile.content}\n</style>\n</head>`)
     }
 
-    // Inject JS
+    // Inject JS from generated files  
     const jsFile = generatedFiles.find(f => f.name.endsWith('.js'))
     if (jsFile) {
-      content = content.replace('</body>', `<script>${jsFile.content}</script></body>`)
+      content = content.replace('</body>', `<script>\n${jsFile.content}\n</script>\n</body>`)
     }
 
     return content
@@ -2526,6 +2770,10 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
               onSelectTemplate={handleSelectTemplate}
               showTemplates={showTemplates}
               setShowTemplates={setShowTemplates}
+              userTemplates={userTemplates}
+              onSaveTemplate={saveUserTemplate}
+              onSelectUserTemplate={handleSelectUserTemplate}
+              onDeleteUserTemplate={deleteUserTemplate}
             />
 
             <ChatInterface
@@ -2540,7 +2788,7 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
             />
           </div>
 
-          <div className="lg:col-span-8 flex flex-col gap-4">
+          <div className="lg:col-span-8 flex flex-col gap-4 overflow-hidden min-h-0">
             <FileBrowser
               files={generatedFiles}
               selectedFile={selectedFile}
@@ -2548,6 +2796,7 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
               onDownloadAll={downloadAllFiles}
               onDownloadZip={downloadAsZip}
               onOpenDeployModal={() => setShowDeployModal(true)}
+              generationStats={generationStats}
             />
 
             <PreviewPanel
