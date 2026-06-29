@@ -4,8 +4,18 @@ import { useState, useRef, useEffect, useCallback, useMemo, Component, memo } fr
 import {
   Send, Settings, Loader2, Download, Code, FileCode, FolderOpen,
   X, Github, Sliders, Database, GitBranch, Upload,
-  CloudDownload, Eye, AlertCircle, Archive, Trash2, Undo
+  CloudDownload, Eye, AlertCircle, Archive, Trash2, Undo,
+  Cloud
 } from 'lucide-react'
+import {
+  CURATED_OPENROUTER_MODELS,
+  CUSTOM_MODEL_ID,
+  DEFAULT_OLLAMA_MODEL_ID,
+  DEFAULT_OPENROUTER_MODEL_ID,
+  PRICE_LIST_VERIFIED_AT,
+  formatDropdownLabel,
+} from '@/lib/models'
+import { generateStream } from '@/lib/llm'
 
 // Error Boundary Component
 class ErrorBoundary extends Component {
@@ -639,7 +649,11 @@ const SettingsPanel = memo(({
   systemStatus,
   ollamaUrl,
   onOllamaUrlChange,
-  onClearSavedWork
+  onClearSavedWork,
+  aiProvider,
+  onAiProviderChange,
+  openrouterConfig,
+  onOpenrouterSave
 }) => {
   if (!showPanel) return null
 
@@ -657,6 +671,41 @@ const SettingsPanel = memo(({
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
+          {/* AI Provider Toggle */}
+          <div className="mb-6 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-xl p-6 border border-cyan-500/20">
+            <h3 className="text-xl font-bold text-cyan-100 mb-4 flex items-center gap-2">
+              <Cloud className="w-5 h-5" />
+              AI Provider
+            </h3>
+            <div className="flex gap-3">
+              <button
+                onClick={() => onAiProviderChange('ollama')}
+                className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
+                  aiProvider === 'ollama'
+                    ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-lg'
+                    : 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20'
+                }`}
+              >
+                Local (Ollama)
+              </button>
+              <button
+                onClick={() => onAiProviderChange('openrouter')}
+                className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
+                  aiProvider === 'openrouter'
+                    ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-lg'
+                    : 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20'
+                }`}
+              >
+                Cloud (OpenRouter)
+              </button>
+            </div>
+            <p className="text-sm text-cyan-300/70 mt-3">
+              {aiProvider === 'ollama'
+                ? 'Generation uses your local Ollama server (configured below).'
+                : 'Generation uses OpenRouter cloud models (configured below).'}
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Ollama Configuration */}
             <div className="bg-gradient-to-br from-orange-500/10 to-transparent rounded-xl p-6 border border-orange-500/20">
@@ -825,12 +874,117 @@ const SettingsPanel = memo(({
                 </button>
               </div>
             </div>
+
+            {/* OpenRouter Configuration */}
+            <div className="bg-gradient-to-br from-cyan-500/10 to-transparent rounded-xl p-6 border border-cyan-500/20">
+              <h3 className="text-xl font-bold text-cyan-100 mb-4 flex items-center gap-2">
+                <Cloud className="w-5 h-5" />
+                OpenRouter Configuration
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-cyan-200 mb-2">
+                    API Key
+                    {openrouterConfig.serverAvailable !== null && (
+                      <span className="ml-2 text-xs text-cyan-300/60">
+                        {openrouterConfig.serverAvailable
+                          ? '(leave blank to use server key)'
+                          : '(server key not configured)'}
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="password"
+                    value={openrouterConfig.apiKey}
+                    onChange={(e) => openrouterConfig.setApiKey(e.target.value)}
+                    placeholder="sk-or-v1-..."
+                    className="w-full px-4 py-2 bg-[#1a1a2e] border border-cyan-500/30 rounded-lg text-cyan-100 placeholder-cyan-400/50 focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-cyan-200 mb-2">
+                    Model
+                  </label>
+                  <select
+                    value={openrouterConfig.model}
+                    onChange={(e) => openrouterConfig.setModel(e.target.value)}
+                    className="w-full px-4 py-2 bg-[#1a1a2e] border border-cyan-500/30 rounded-lg text-cyan-100 focus:outline-none focus:border-cyan-500/50"
+                  >
+                    {CURATED_OPENROUTER_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {formatDropdownLabel(m)}
+                      </option>
+                    ))}
+                    <option value={CUSTOM_MODEL_ID}>
+                      Custom… (enter slug below)
+                    </option>
+                  </select>
+                  <p className="text-xs text-cyan-300/60 mt-1">
+                    Prices verified {PRICE_LIST_VERIFIED_AT}.
+                  </p>
+                </div>
+                {openrouterConfig.model === CUSTOM_MODEL_ID && (
+                  <div>
+                    <label className="block text-sm font-medium text-cyan-200 mb-2">
+                      Custom Model Slug
+                    </label>
+                    <input
+                      type="text"
+                      value={openrouterConfig.customSlug}
+                      onChange={(e) => openrouterConfig.setCustomSlug(e.target.value)}
+                      placeholder="provider/model-name"
+                      className="w-full px-4 py-2 bg-[#1a1a2e] border border-cyan-500/30 rounded-lg text-cyan-100 placeholder-cyan-400/50 focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-cyan-200 mb-2">
+                    Max Output Tokens: {openrouterConfig.maxTokens}
+                  </label>
+                  <input
+                    type="range"
+                    min="1024"
+                    max="64000"
+                    step="512"
+                    value={openrouterConfig.maxTokens}
+                    onChange={(e) => openrouterConfig.setMaxTokens(parseInt(e.target.value, 10))}
+                    className="w-full"
+                  />
+                </div>
+                <button
+                  onClick={onOpenrouterSave}
+                  className="w-full py-2 px-4 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
+                  Save OpenRouter Settings
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* System Status */}
           <div className="mt-6 bg-gradient-to-br from-orange-500/10 to-transparent rounded-xl p-6 border border-orange-500/20">
             <h3 className="text-xl font-bold text-orange-100 mb-4">System Status</h3>
             <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${systemStatus.aiProvider === 'ollama' ? 'bg-orange-500' : 'bg-cyan-500'}`}></div>
+                <span className="text-orange-200">Active Provider: {systemStatus.aiProvider === 'ollama' ? 'Ollama (local)' : 'OpenRouter (cloud)'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  systemStatus.openrouterServerAvailable === true
+                    ? 'bg-green-500'
+                    : systemStatus.openrouterServerAvailable === false
+                    ? 'bg-gray-500'
+                    : 'bg-yellow-500'
+                }`}></div>
+                <span className="text-orange-200">OR Server Key: {
+                  systemStatus.openrouterServerAvailable === true
+                    ? 'Available'
+                    : systemStatus.openrouterServerAvailable === false
+                    ? 'Not configured'
+                    : 'Checking…'
+                }</span>
+              </div>
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${systemStatus.supabase ? 'bg-green-500' : 'bg-gray-500'}`}></div>
                 <span className="text-orange-200">Supabase: {systemStatus.supabase ? 'Connected' : 'Disabled'}</span>
@@ -1384,7 +1538,15 @@ function AIWebsitePowerhouse() {
   const [githubEnabled, setGithubEnabled] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [needsBackend, _setNeedsBackend] = useState(false)
-  
+
+  // AI Provider Configuration
+  const [aiProvider, setAiProvider] = useState('ollama')
+  const [openrouterKey, setOpenrouterKey] = useState('')
+  const [openrouterModel, setOpenrouterModel] = useState(DEFAULT_OPENROUTER_MODEL_ID)
+  const [openrouterCustomSlug, setOpenrouterCustomSlug] = useState('')
+  const [openrouterMaxTokens, setOpenrouterMaxTokens] = useState(16000)
+  const [openrouterServerAvailable, setOpenrouterServerAvailable] = useState(null)
+
   // Model Parameters
   const [numCtx, setNumCtx] = useState(32768)
   const [temperature, setTemperature] = useState(0.7)
@@ -1422,6 +1584,29 @@ function AIWebsitePowerhouse() {
       setGithubToken(savedGithubToken)
       setGithubEnabled(true)
     }
+
+    // AI Provider hydration
+    const savedProvider = localStorage.getItem('aiProvider')
+    if (savedProvider === 'openrouter' || savedProvider === 'ollama') {
+      setAiProvider(savedProvider)
+    }
+    const savedOrKey = localStorage.getItem('openrouterKey')
+    if (savedOrKey) setOpenrouterKey(savedOrKey)
+    const savedOrModel = localStorage.getItem('openrouterModel')
+    if (savedOrModel) setOpenrouterModel(savedOrModel)
+    const savedOrCustom = localStorage.getItem('openrouterCustomSlug')
+    if (savedOrCustom) setOpenrouterCustomSlug(savedOrCustom)
+    const savedOrMaxTokens = localStorage.getItem('openrouterMaxTokens')
+    if (savedOrMaxTokens) {
+      const parsed = parseInt(savedOrMaxTokens, 10)
+      if (!isNaN(parsed) && parsed > 0) setOpenrouterMaxTokens(parsed)
+    }
+
+    // Probe server-side OpenRouter availability (best-effort)
+    fetch('/api/openrouter', { method: 'GET' })
+      .then((res) => (res.ok ? res.json() : { available: false }))
+      .then((data) => setOpenrouterServerAvailable(Boolean(data && data.available)))
+      .catch(() => setOpenrouterServerAvailable(false))
 
     // Check for saved work
     const savedWork = localStorage.getItem('aiwebsite_autosave')
@@ -1508,42 +1693,151 @@ function AIWebsitePowerhouse() {
     }
   }, [githubUsername, githubToken])
 
+  // Handle AI provider change
+  const handleAiProviderChange = useCallback((newProvider) => {
+    setAiProvider(newProvider)
+    localStorage.setItem('aiProvider', newProvider)
+  }, [])
+
+  // Save OpenRouter settings
+  const saveOpenrouterSettings = useCallback(() => {
+    localStorage.setItem('openrouterKey', openrouterKey)
+    localStorage.setItem('openrouterModel', openrouterModel)
+    localStorage.setItem('openrouterCustomSlug', openrouterCustomSlug)
+    localStorage.setItem('openrouterMaxTokens', String(openrouterMaxTokens))
+    alert('OpenRouter settings saved!')
+  }, [openrouterKey, openrouterModel, openrouterCustomSlug, openrouterMaxTokens])
+
   // Detect and split files
+  //
+  // Splits a multi-file LLM response into discrete files. Robust against
+  // the failure modes observed with DeepSeek V3 on OpenRouter:
+  //   - Case variations of the FILE marker (FILE / File / file)
+  //   - Missing marker on the implicit first file
+  //   - Trailing prose / summary paragraph after the final </html>
+  //   - Leading prose before the first <!DOCTYPE
+  //   - Accidental ```html ... ``` code fences
+  //   - CRLF line endings in streamed chunks
   const detectAndSplitFiles = useCallback((content) => {
-    const files = []
-    
-    // Patterns to detect file markers
-    const filePatterns = [
-      /(?:^|\n)\/\/ File: (.+?)\n([\s\S]*?)(?=\n\/\/ File: |\n\/\* File: |$)/g,
-      /(?:^|\n)\/\* File: (.+?) \*\/\n([\s\S]*?)(?=\n\/\/ File: |\n\/\* File: |$)/g,
-      /(?:^|\n)<!-- File: (.+?) -->\n([\s\S]*?)(?=\n<!-- File: |\n\/\/ File: |\n\/\* File: |$)/g
+    if (typeof content !== 'string' || content.length === 0) {
+      return []
+    }
+
+    // Normalize line endings so the marker regex does not have to handle CRLF.
+    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+    // Strip surrounding markdown code fences if the model wrapped its output
+    // in ```html ... ``` despite the prompt telling it not to.
+    const fenceStripped = normalized
+      .replace(/^\s*```[a-zA-Z]*\s*\n/, '')
+      .replace(/\n```\s*$/, '')
+      .trim()
+
+    // Trim a per-file slice to just its HTML document. Strips any narration
+    // before <!DOCTYPE (or <html) and anything after </html>. Non-HTML
+    // content (CSS, JS) passes through unchanged.
+    const trimToHtmlBounds = (raw) => {
+      const trimmed = raw.trim()
+      if (trimmed.length === 0) return ''
+
+      const lower = trimmed.toLowerCase()
+      const docTypeIdx = lower.indexOf('<!doctype')
+      const htmlOpenIdx = lower.indexOf('<html')
+
+      let startIdx = -1
+      if (docTypeIdx !== -1 && htmlOpenIdx !== -1) {
+        startIdx = Math.min(docTypeIdx, htmlOpenIdx)
+      } else if (docTypeIdx !== -1) {
+        startIdx = docTypeIdx
+      } else if (htmlOpenIdx !== -1) {
+        startIdx = htmlOpenIdx
+      }
+
+      // Not an HTML document — return as-is so CSS/JS files are not corrupted.
+      if (startIdx === -1) {
+        return trimmed
+      }
+
+      // Strip anything after the last </html>. This is what kills the
+      // postamble paragraph DeepSeek leaks at the end of long responses.
+      const htmlCloseIdx = lower.lastIndexOf('</html>')
+      const endIdx = htmlCloseIdx !== -1
+        ? htmlCloseIdx + '</html>'.length
+        : trimmed.length
+
+      return trimmed.slice(startIdx, endIdx)
+    }
+
+    // Match every file marker. Three syntaxes are accepted for forward
+    // compatibility, all case-insensitive on the FILE keyword:
+    //   <!-- FILE: name.html -->     (the documented HTML form)
+    //   // FILE: name.js              (line-comment form, future JS gens)
+    //   /* FILE: name.css */          (block-comment form, future CSS gens)
+    const markerPatterns = [
+      /(?:^|\n)\s*<!--\s*FILE:\s*([^\n>]+?)\s*-->\s*\n/gi,
+      /(?:^|\n)\s*\/\/\s*FILE:\s*([^\n]+?)\s*\n/gi,
+      /(?:^|\n)\s*\/\*\s*FILE:\s*([^\n*]+?)\s*\*\/\s*\n/gi,
     ]
 
-    let hasFiles = false
-    
-    for (const pattern of filePatterns) {
-      const matches = [...content.matchAll(pattern)]
-      if (matches.length > 0) {
-        hasFiles = true
-        matches.forEach(match => {
-          const filename = match[1].trim()
-          const fileContent = match[2].trim()
-          files.push({ name: filename, content: fileContent })
-        })
-        break
+    const markers = []
+    for (const pattern of markerPatterns) {
+      for (const m of fenceStripped.matchAll(pattern)) {
+        const filename = (m[1] || '').trim()
+        if (filename.length > 0) {
+          markers.push({
+            filename,
+            markerStart: m.index,
+            contentStart: m.index + m[0].length,
+          })
+        }
+      }
+    }
+    // Process in document order regardless of which pattern matched first.
+    markers.sort((a, b) => a.markerStart - b.markerStart)
+
+    const files = []
+
+    if (markers.length === 0) {
+      // No markers anywhere — single-file response. Use the original
+      // heuristic to name it.
+      const cleaned = trimToHtmlBounds(fenceStripped)
+      if (cleaned.length === 0) return []
+
+      const lower = cleaned.toLowerCase()
+      if (lower.includes('<!doctype') || lower.includes('<html')) {
+        files.push({ name: 'index.html', content: cleaned })
+      } else if (cleaned.includes('function ') || cleaned.includes('const ') || cleaned.includes('import ')) {
+        files.push({ name: 'script.js', content: cleaned })
+      } else if (cleaned.includes('{') && cleaned.includes('}')) {
+        files.push({ name: 'styles.css', content: cleaned })
+      } else {
+        files.push({ name: 'index.html', content: cleaned })
+      }
+      return files
+    }
+
+    // Implicit first file: if there is HTML content before the first marker,
+    // promote it to index.html. This rescues the DeepSeek pattern where the
+    // model only marks files 2..N.
+    const preamble = fenceStripped.slice(0, markers[0].markerStart)
+    const preambleLower = preamble.toLowerCase()
+    if (preambleLower.includes('<!doctype') || preambleLower.includes('<html')) {
+      const cleaned = trimToHtmlBounds(preamble)
+      if (cleaned.length > 0) {
+        files.push({ name: 'index.html', content: cleaned })
       }
     }
 
-    // If no file markers found, create files based on content
-    if (!hasFiles) {
-      if (content.includes('<!DOCTYPE html>') || content.includes('<html')) {
-        files.push({ name: 'index.html', content: content.trim() })
-      } else if (content.includes('function ') || content.includes('const ') || content.includes('import ')) {
-        files.push({ name: 'script.js', content: content.trim() })
-      } else if (content.includes('{') && content.includes('}')) {
-        files.push({ name: 'styles.css', content: content.trim() })
-      } else {
-        files.push({ name: 'index.html', content: content.trim() })
+    // Slice content between consecutive markers.
+    for (let i = 0; i < markers.length; i++) {
+      const { filename, contentStart } = markers[i]
+      const contentEnd = i + 1 < markers.length
+        ? markers[i + 1].markerStart
+        : fenceStripped.length
+      const raw = fenceStripped.slice(contentStart, contentEnd)
+      const cleaned = trimToHtmlBounds(raw)
+      if (cleaned.length > 0) {
+        files.push({ name: filename, content: cleaned })
       }
     }
 
@@ -1571,6 +1865,43 @@ function AIWebsitePowerhouse() {
     const canUseSupabase = supabaseEnabled && supabaseUrl && supabaseKey
 
     let systemPrompt = `You are an elite web developer with 15+ years of experience building production applications. Create a sophisticated, feature-rich, professional-grade website.
+
+CRITICAL OUTPUT FORMAT — THIS RULE OVERRIDES EVERYTHING ELSE BELOW:
+
+Your response must contain ONLY raw code. Nothing else. Do not include:
+- Any introduction, greeting, or "Here is the code:" preamble
+- Any summary, explanation, feature list, or recap after the final closing tag
+- Any markdown code fences (no \`\`\`html, no \`\`\`)
+- Any commentary between files
+- Any "I hope this helps", "Let me know if you need changes", or similar closing remarks
+
+The very first character of your response must be the first character of the code. The very last character of your response must be the last character of the code (typically </html>). After </html> there must be NOTHING.
+
+MULTI-FILE OUTPUT FORMAT:
+
+If the response contains more than one file, every file — INCLUDING THE FIRST — must be preceded by a marker on its own line, in this exact format:
+
+<!-- FILE: index.html -->
+<!DOCTYPE html>
+[complete file content]
+</html>
+
+<!-- FILE: services.html -->
+<!DOCTYPE html>
+[complete file content]
+</html>
+
+<!-- FILE: contact.html -->
+<!DOCTYPE html>
+[complete file content]
+</html>
+
+Rules for the marker:
+- The keyword "FILE" must be in ALL CAPS
+- The marker must be on its own line, not inline
+- One blank line between files; no prose between files
+- Every file gets a marker, including the very first one
+- For a single-file response, the marker is optional
 
 QUALITY STANDARDS:
 - Think like you're building for a Fortune 500 client with a $50,000 budget
@@ -1609,14 +1940,6 @@ REAL CONTENT:
 - If it's a restaurant site, include actual menu items with descriptions
 - If it's a portfolio, include realistic project descriptions
 - Content should feel authentic and professional
-
-FOR MULTI-PAGE WEBSITES:
-If the user requests multiple pages, separate each file clearly using this format:
-<!-- FILE: filename.html -->
-[complete file content here]
-
-<!-- FILE: another-page.html -->
-[complete file content here]
 
 EXAMPLES OF GOING ABOVE AND BEYOND:
 - Portfolio request → Add project filtering by category, animated hover effects, modal lightbox for images, contact form with validation, skills progress bars, testimonials section
@@ -1665,77 +1988,95 @@ The user requested backend features but hasn't configured Supabase yet.
 
     systemPrompt += `
 
-Return ONLY the complete code. For single-page sites, start with <!DOCTYPE html>.`
+FINAL REMINDER: Output begins with the first character of code. Output ends with the last character of code. No prose before, no prose after, no markdown fences, no postamble.`
+
+    // Resolve the effective OpenRouter model. The CUSTOM_MODEL_ID sentinel
+    // means the user picked "Custom…" in the dropdown and typed their own slug.
+    const effectiveOrModel =
+      openrouterModel === CUSTOM_MODEL_ID
+        ? openrouterCustomSlug.trim()
+        : openrouterModel
+
+    let lastUpdateTime = Date.now()
+    const UPDATE_INTERVAL = 150
+    let capturedError = null
 
     try {
-      const response = await fetch(`${ollamaUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'qwen3-coder:480b-cloud',
-          prompt: systemPrompt + '\n\nUser request: ' + prompt,
-          stream: true,
-          options: {
-            num_ctx: numCtx,
-            temperature: Math.min(temperature * 1.3, 1.2),
-            top_p: topP,
-            top_k: topK,
-            repeat_penalty: 1.1
+      await generateStream({
+        provider: aiProvider,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        ollamaConfig: {
+          url: ollamaUrl,
+          model: DEFAULT_OLLAMA_MODEL_ID,
+          num_ctx: numCtx,
+          temperature: Math.min(temperature * 1.3, 1.2),
+          top_p: topP,
+          top_k: topK,
+          repeat_penalty: 1.1,
+        },
+        openrouterConfig: {
+          apiKey: openrouterKey.trim() || null,
+          model: effectiveOrModel,
+          temperature: Math.min(temperature * 1.3, 1.2),
+          top_p: topP,
+          max_tokens: openrouterMaxTokens,
+        },
+        onChunk: (_fragment, accumulated) => {
+          const now = Date.now()
+          if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            setGeneratedCode(accumulated)
+            lastUpdateTime = now
           }
-        })
+        },
+        onDone: (fullText) => {
+          setGeneratedCode(fullText)
+          const cleanedCode = fullText.trim()
+          const files = detectAndSplitFiles(cleanedCode)
+          setGeneratedFiles(files)
+          if (files.length > 0) {
+            setSelectedFile(files[0])
+          }
+        },
+        onError: (err) => {
+          capturedError = err
+        },
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let accumulatedCode = ''
-      let lastUpdateTime = Date.now()
-      const UPDATE_INTERVAL = 150
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter(line => line.trim())
-
-        for (const line of lines) {
-          try {
-            const json = JSON.parse(line)
-            if (json.response) {
-              accumulatedCode += json.response
-              
-              const now = Date.now()
-              if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                setGeneratedCode(accumulatedCode)
-                lastUpdateTime = now
-              }
-            }
-          } catch {
-            // Ignore malformed JSON
-          }
-        }
-      }
-
-      setGeneratedCode(accumulatedCode)
-      
-      let cleanedCode = accumulatedCode.trim()
-      const files = detectAndSplitFiles(cleanedCode)
-      setGeneratedFiles(files)
-
-      if (files.length > 0) {
-        setSelectedFile(files[0])
+      if (capturedError) {
+        throw capturedError
       }
     } catch (error) {
       console.error('Generation error:', error)
-      alert(`Error generating website: ${error.message}\n\nMake sure Ollama is running!`)
+      const providerLabel = aiProvider === 'ollama' ? 'Ollama' : 'OpenRouter'
+      const hint =
+        aiProvider === 'ollama'
+          ? 'Make sure Ollama is running!'
+          : 'Check your OpenRouter API key and selected model in Settings.'
+      alert(`Error generating website (${providerLabel}): ${error.message}\n\n${hint}`)
     } finally {
       setIsGenerating(false)
     }
-  }, [prompt, needsBackend, supabaseEnabled, supabaseUrl, supabaseKey, numCtx, temperature, topP, topK, detectAndSplitFiles, ollamaUrl])
+  }, [
+    prompt,
+    needsBackend,
+    supabaseEnabled,
+    supabaseUrl,
+    supabaseKey,
+    numCtx,
+    temperature,
+    topP,
+    topK,
+    detectAndSplitFiles,
+    ollamaUrl,
+    aiProvider,
+    openrouterKey,
+    openrouterModel,
+    openrouterCustomSlug,
+    openrouterMaxTokens,
+  ])
 
   const handleChatModify = useCallback(async () => {
     if (!chatMessage.trim() || !generatedCode) return
@@ -1784,80 +2125,94 @@ SUPABASE IS AVAILABLE:
 
 IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated seamlessly. If there are multiple files, use the same FILE: marker format. Return ONLY the code, nothing else.`
 
+    // Resolve the effective OpenRouter model. Same rule as handleGenerate.
+    const effectiveOrModel =
+      openrouterModel === CUSTOM_MODEL_ID
+        ? openrouterCustomSlug.trim()
+        : openrouterModel
+
+    let lastUpdateTime = Date.now()
+    const UPDATE_INTERVAL = 150
+    let capturedError = null
+
     try {
-      const response = await fetch(`${ollamaUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'qwen3-coder:480b-cloud',
-          prompt: modifyPrompt,
-          stream: true,
-          options: {
-            num_ctx: numCtx,
-            temperature: Math.min(temperature * 1.3, 1.2),
-            top_p: topP,
-            top_k: topK,
-            repeat_penalty: 1.1
+      await generateStream({
+        provider: aiProvider,
+        messages: [{ role: 'user', content: modifyPrompt }],
+        ollamaConfig: {
+          url: ollamaUrl,
+          model: DEFAULT_OLLAMA_MODEL_ID,
+          num_ctx: numCtx,
+          temperature: Math.min(temperature * 1.3, 1.2),
+          top_p: topP,
+          top_k: topK,
+          repeat_penalty: 1.1,
+        },
+        openrouterConfig: {
+          apiKey: openrouterKey.trim() || null,
+          model: effectiveOrModel,
+          temperature: Math.min(temperature * 1.3, 1.2),
+          top_p: topP,
+          max_tokens: openrouterMaxTokens,
+        },
+        onChunk: (_fragment, accumulated) => {
+          const now = Date.now()
+          if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            setGeneratedCode(accumulated)
+            lastUpdateTime = now
           }
-        })
+        },
+        onDone: (fullText) => {
+          setGeneratedCode(fullText)
+          const cleanedCode = fullText.trim()
+          const files = detectAndSplitFiles(cleanedCode)
+          setGeneratedFiles(files)
+          if (selectedFile) {
+            const updatedFile = files.find((f) => f.name === selectedFile.name)
+            setSelectedFile(updatedFile || files[0])
+          }
+          const assistantMessage = {
+            role: 'assistant',
+            content: 'Website updated successfully!',
+          }
+          setChatHistory((prev) => [...prev, assistantMessage])
+        },
+        onError: (err) => {
+          capturedError = err
+        },
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      if (capturedError) {
+        throw capturedError
       }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let accumulatedCode = ''
-      let lastUpdateTime = Date.now()
-      const UPDATE_INTERVAL = 150
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n').filter(line => line.trim())
-
-        for (const line of lines) {
-          try {
-            const json = JSON.parse(line)
-            if (json.response) {
-              accumulatedCode += json.response
-              
-              const now = Date.now()
-              if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                setGeneratedCode(accumulatedCode)
-                lastUpdateTime = now
-              }
-            }
-          } catch {
-            // Ignore malformed JSON
-          }
-        }
-      }
-
-      setGeneratedCode(accumulatedCode)
-      
-      let cleanedCode = accumulatedCode.trim()
-      const files = detectAndSplitFiles(cleanedCode)
-      setGeneratedFiles(files)
-
-      if (selectedFile) {
-        const updatedFile = files.find(f => f.name === selectedFile.name)
-        setSelectedFile(updatedFile || files[0])
-      }
-
-      const assistantMessage = { role: 'assistant', content: 'Website updated successfully!' }
-      setChatHistory(prev => [...prev, assistantMessage])
     } catch (error) {
       console.error('Modification error:', error)
       const errorMessage = { role: 'assistant', content: `Error: ${error.message}` }
-      setChatHistory(prev => [...prev, errorMessage])
+      setChatHistory((prev) => [...prev, errorMessage])
     } finally {
       setIsGenerating(false)
     }
-  }, [chatMessage, generatedCode, generatedFiles, needsBackend, supabaseEnabled, supabaseUrl, supabaseKey, numCtx, temperature, topP, topK, detectAndSplitFiles, selectedFile, ollamaUrl])
+  }, [
+    chatMessage,
+    generatedCode,
+    generatedFiles,
+    needsBackend,
+    supabaseEnabled,
+    supabaseUrl,
+    supabaseKey,
+    numCtx,
+    temperature,
+    topP,
+    topK,
+    detectAndSplitFiles,
+    selectedFile,
+    ollamaUrl,
+    aiProvider,
+    openrouterKey,
+    openrouterModel,
+    openrouterCustomSlug,
+    openrouterMaxTokens,
+  ])
 
   // Undo last change
   const undoLastChange = useCallback(() => {
@@ -1999,8 +2354,10 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
   const hasGeneratedCode = useMemo(() => generatedCode.length > 0, [generatedCode])
   const systemStatus = useMemo(() => ({
     supabase: supabaseEnabled,
-    github: githubEnabled
-  }), [supabaseEnabled, githubEnabled])
+    github: githubEnabled,
+    aiProvider,
+    openrouterServerAvailable
+  }), [supabaseEnabled, githubEnabled, aiProvider, openrouterServerAvailable])
   const canUndo = useMemo(() => codeHistory.length > 0, [codeHistory])
 
   return (
@@ -2038,6 +2395,29 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
                 GitHub
               </span>
             )}
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
+                aiProvider === 'ollama'
+                  ? 'bg-orange-500/20 border border-orange-500/30 text-orange-300'
+                  : 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-300'
+              }`}
+              title={
+                aiProvider === 'ollama'
+                  ? `Local Ollama at ${ollamaUrl}`
+                  : openrouterKey.trim()
+                  ? 'OpenRouter (your key)'
+                  : 'OpenRouter (server key)'
+              }
+            >
+              <Cloud className="w-3 h-3" />
+              {aiProvider === 'ollama'
+                ? `Ollama · ${DEFAULT_OLLAMA_MODEL_ID}`
+                : `OpenRouter · ${
+                    openrouterModel === CUSTOM_MODEL_ID
+                      ? openrouterCustomSlug.trim() || '(no model)'
+                      : openrouterModel
+                  }`}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {githubEnabled && (
@@ -2117,6 +2497,20 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
         ollamaUrl={ollamaUrl}
         onOllamaUrlChange={handleOllamaUrlChange}
         onClearSavedWork={clearSavedWork}
+        aiProvider={aiProvider}
+        onAiProviderChange={handleAiProviderChange}
+        openrouterConfig={{
+          apiKey: openrouterKey,
+          model: openrouterModel,
+          customSlug: openrouterCustomSlug,
+          maxTokens: openrouterMaxTokens,
+          serverAvailable: openrouterServerAvailable,
+          setApiKey: setOpenrouterKey,
+          setModel: setOpenrouterModel,
+          setCustomSlug: setOpenrouterCustomSlug,
+          setMaxTokens: setOpenrouterMaxTokens
+        }}
+        onOpenrouterSave={saveOpenrouterSettings}
       />
 
       {/* Main Content */}
