@@ -19,6 +19,8 @@ import { generateStream } from '@/lib/llm'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { debounce } from '@/lib/utils/debounce'
 import { PROMPT_TEMPLATES } from '@/lib/prompts/templates'
+import { parseGeneratedFiles } from '@/lib/generation/parser'
+import { downloadFile, downloadAllFiles, downloadAsZip } from '@/lib/utils/download'
 
 // Memoized Deploy Modal Component
 const DeployModal = memo(({ isOpen, onClose }) => {
@@ -1443,141 +1445,6 @@ function AIWebsitePowerhouse() {
     localStorage.setItem('openrouterMaxTokens', String(openrouterMaxTokens))
     alert('OpenRouter settings saved!')
   }, [openrouterKey, openrouterModel, openrouterCustomSlug, openrouterMaxTokens])
-  // Detect and split files
-  //
-  // Splits a multi-file LLM response into discrete files. Robust against
-  // the failure modes observed with DeepSeek V3 on OpenRouter:
-  //   - Case variations of the FILE marker (FILE / File / file)
-  //   - Missing marker on the implicit first file
-  //   - Trailing prose / summary paragraph after the final </html>
-  //   - Leading prose before the first <!DOCTYPE
-  //   - Accidental ```html ... ``` code fences
-  //   - CRLF line endings in streamed chunks
-  const detectAndSplitFiles = useCallback((content) => {
-    if (typeof content !== 'string' || content.length === 0) {
-      return []
-    }
-
-    // Normalize line endings so the marker regex does not have to handle CRLF.
-    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-
-    // Strip surrounding markdown code fences if the model wrapped its output
-    // in ```html ... ``` despite the prompt telling it not to.
-    const fenceStripped = normalized
-      .replace(/^\s*```[a-zA-Z]*\s*\n/, '')
-      .replace(/\n```\s*$/, '')
-      .trim()
-
-    // Trim a per-file slice to just its HTML document. Strips any narration
-    // before <!DOCTYPE (or <html) and anything after </html>. Non-HTML
-    // content (CSS, JS) passes through unchanged.
-    const trimToHtmlBounds = (raw) => {
-      const trimmed = raw.trim()
-      if (trimmed.length === 0) return ''
-
-      const lower = trimmed.toLowerCase()
-      const docTypeIdx = lower.indexOf('<!doctype')
-      const htmlOpenIdx = lower.indexOf('<html')
-
-      let startIdx = -1
-      if (docTypeIdx !== -1 && htmlOpenIdx !== -1) {
-        startIdx = Math.min(docTypeIdx, htmlOpenIdx)
-      } else if (docTypeIdx !== -1) {
-        startIdx = docTypeIdx
-      } else if (htmlOpenIdx !== -1) {
-        startIdx = htmlOpenIdx
-      }
-
-      // Not an HTML document — return as-is so CSS/JS files are not corrupted.
-      if (startIdx === -1) {
-        return trimmed
-      }
-
-      // Strip anything after the last </html>. This is what kills the
-      // postamble paragraph DeepSeek leaks at the end of long responses.
-      const htmlCloseIdx = lower.lastIndexOf('</html>')
-      const endIdx = htmlCloseIdx !== -1
-        ? htmlCloseIdx + '</html>'.length
-        : trimmed.length
-
-      return trimmed.slice(startIdx, endIdx)
-    }
-
-    // Match every file marker. Three syntaxes are accepted for forward
-    // compatibility, all case-insensitive on the FILE keyword:
-    //   <!-- FILE: name.html -->     (the documented HTML form)
-    //   // FILE: name.js              (line-comment form, future JS gens)
-    //   /* FILE: name.css */          (block-comment form, future CSS gens)
-    const markerPatterns = [
-      /(?:^|\n)\s*<!--\s*FILE:\s*([^\n>]+?)\s*-->\s*\n/gi,
-      /(?:^|\n)\s*\/\/\s*FILE:\s*([^\n]+?)\s*\n/gi,
-      /(?:^|\n)\s*\/\*\s*FILE:\s*([^\n*]+?)\s*\*\/\s*\n/gi,
-    ]
-
-    const markers = []
-    for (const pattern of markerPatterns) {
-      for (const m of fenceStripped.matchAll(pattern)) {
-        const filename = (m[1] || '').trim()
-        if (filename.length > 0) {
-          markers.push({
-            filename,
-            markerStart: m.index,
-            contentStart: m.index + m[0].length,
-          })
-        }
-      }
-    }
-    // Process in document order regardless of which pattern matched first.
-    markers.sort((a, b) => a.markerStart - b.markerStart)
-
-    const files = []
-
-    if (markers.length === 0) {
-      // No markers anywhere — single-file response. Use the original
-      // heuristic to name it.
-      const cleaned = trimToHtmlBounds(fenceStripped)
-      if (cleaned.length === 0) return []
-
-      const lower = cleaned.toLowerCase()
-      if (lower.includes('<!doctype') || lower.includes('<html')) {
-        files.push({ name: 'index.html', content: cleaned })
-      } else if (cleaned.includes('function ') || cleaned.includes('const ') || cleaned.includes('import ')) {
-        files.push({ name: 'script.js', content: cleaned })
-      } else if (cleaned.includes('{') && cleaned.includes('}')) {
-        files.push({ name: 'styles.css', content: cleaned })
-      } else {
-        files.push({ name: 'index.html', content: cleaned })
-      }
-      return files
-    }
-
-    // Implicit first file: if there is HTML content before the first marker,
-    // promote it to index.html. This rescues the DeepSeek pattern where the
-    // model only marks files 2..N.
-    const preamble = fenceStripped.slice(0, markers[0].markerStart)
-    const preambleLower = preamble.toLowerCase()
-    if (preambleLower.includes('<!doctype') || preambleLower.includes('<html')) {
-      const cleaned = trimToHtmlBounds(preamble)
-      if (cleaned.length > 0) {
-        files.push({ name: 'index.html', content: cleaned })
-      }
-    }
-
-    // Slice content between consecutive markers.
-    for (let i = 0; i < markers.length; i++) {
-      const { filename, contentStart } = markers[i]
-      const contentEnd = i + 1 < markers.length
-        ? markers[i + 1].markerStart
-        : fenceStripped.length
-      const raw = fenceStripped.slice(contentStart, contentEnd)
-      const cleaned = trimToHtmlBounds(raw)
-      if (cleaned.length > 0) {
-        files.push({ name: filename, content: cleaned })
-      }
-    }
-
-    return files
-  }, [])
 
   // Select template
   const handleSelectTemplate = useCallback((templateKey) => {
@@ -1815,7 +1682,7 @@ FINAL REMINDER: Output begins with the first character of code. Output ends with
         onDone: (fullText) => {
           setGeneratedCode(fullText)
           const cleanedCode = fullText.trim()
-          const files = detectAndSplitFiles(cleanedCode)
+          const files = parseGeneratedFiles(cleanedCode)
           setGeneratedFiles(files)
           if (files.length > 0) {
             setSelectedFile(files[0])
@@ -1850,7 +1717,6 @@ FINAL REMINDER: Output begins with the first character of code. Output ends with
     temperature,
     topP,
     topK,
-    detectAndSplitFiles,
     ollamaUrl,
     aiProvider,
     openrouterKey,
@@ -1951,7 +1817,7 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
         onDone: (fullText) => {
           setGeneratedCode(fullText)
           const cleanedCode = fullText.trim()
-          const files = detectAndSplitFiles(cleanedCode)
+          const files = parseGeneratedFiles(cleanedCode)
           setGeneratedFiles(files)
           if (selectedFile) {
             const updatedFile = files.find((f) => f.name === selectedFile.name)
@@ -1990,7 +1856,6 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
     temperature,
     topP,
     topK,
-    detectAndSplitFiles,
     selectedFile,
     ollamaUrl,
     aiProvider,
@@ -2014,48 +1879,6 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
     setChatHistory(prev => [...prev, undoMessage])
   }, [codeHistory])
 
-  // Download single file
-  const downloadFile = useCallback((file) => {
-    const blob = new Blob([file.content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = file.name
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [])
-
-  // Download all files
-  const downloadAllFiles = useCallback(() => {
-    generatedFiles.forEach((file, index) => {
-      setTimeout(() => downloadFile(file), index * 100)
-    })
-  }, [generatedFiles, downloadFile])
-
-  // Download as ZIP
-  const downloadAsZip = useCallback(async () => {
-    try {
-      // Dynamic import of JSZip
-      const JSZip = (await import('jszip')).default
-      const zip = new JSZip()
-
-      generatedFiles.forEach(file => {
-        zip.file(file.name, file.content)
-      })
-
-      const blob = await zip.generateAsync({ type: 'blob' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'website.zip'
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('ZIP creation error:', error)
-      alert('Error creating ZIP file. Downloading files individually instead.')
-      downloadAllFiles()
-    }
-  }, [generatedFiles, downloadAllFiles])
 
   // GitHub functions
   const createGithubRepo = useCallback(async () => {
@@ -2345,8 +2168,8 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
               files={generatedFiles}
               selectedFile={selectedFile}
               onSelectFile={setSelectedFile}
-              onDownloadAll={downloadAllFiles}
-              onDownloadZip={downloadAsZip}
+              onDownloadAll={() => downloadAllFiles(generatedFiles)}
+              onDownloadZip={() => downloadAsZip(generatedFiles)}
               onOpenDeployModal={() => setShowDeployModal(true)}
               generationStats={generationStats}
             />
