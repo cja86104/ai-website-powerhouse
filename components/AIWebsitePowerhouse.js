@@ -1646,10 +1646,6 @@ function AIWebsitePowerhouse() {
   const [topP, setTopP] = useState(0.9)
   const [topK, setTopK] = useState(40)
   
-  // Model Selection
-  const [selectedModel, setSelectedModel] = useState('qwen3-coder:480b-cloud')
-  const [availableModels, setAvailableModels] = useState([])
-  
   // Generation Stats
   const [generationStats, setGenerationStats] = useState(null)
   
@@ -1665,19 +1661,15 @@ function AIWebsitePowerhouse() {
   // Refs
   const iframeRef = useRef(null)
 
-  // Fetch available models from Ollama
+  // Connectivity probe for Ollama. The model-picker UI was unwired during the
+  // OpenRouter restructure; this preserves a no-op network check (and the
+  // hook-dep stability that handleOllamaUrlChange + the init useEffect rely
+  // on) until the model picker is rebuilt in the W5 generation refactor.
   const fetchAvailableModels = useCallback(async (url) => {
     try {
-      const response = await fetch(`${url}/api/tags`)
-      if (response.ok) {
-        const data = await response.json()
-        if (data.models && Array.isArray(data.models)) {
-          setAvailableModels(data.models.map(m => m.name))
-        }
-      }
+      await fetch(`${url}/api/tags`)
     } catch (error) {
-      console.log('Could not fetch models from Ollama:', error.message)
-      // Not critical - user can still type model name manually
+      console.log('Could not reach Ollama:', error.message)
     }
   }, [])
 
@@ -1688,8 +1680,7 @@ function AIWebsitePowerhouse() {
     const savedSupabaseKey = localStorage.getItem('supabaseKey')
     const savedGithubUsername = localStorage.getItem('githubUsername')
     const savedGithubToken = localStorage.getItem('githubToken')
-    const savedModel = localStorage.getItem('selectedModel')
-    
+
     if (savedUrl) setOllamaUrl(savedUrl)
     if (savedSupabaseUrl) setSupabaseUrl(savedSupabaseUrl)
     if (savedSupabaseKey) {
@@ -1701,7 +1692,6 @@ function AIWebsitePowerhouse() {
       setGithubToken(savedGithubToken)
       setGithubEnabled(true)
     }
-    if (savedModel) setSelectedModel(savedModel)
 
     // Load user templates
     const savedUserTemplates = localStorage.getItem('aiwebsite_user_templates')
@@ -1841,12 +1831,6 @@ function AIWebsitePowerhouse() {
     // Fetch available models from new URL
     fetchAvailableModels(newUrl)
   }, [fetchAvailableModels])
-
-  // Handle model selection change
-  const handleModelChange = useCallback((modelName) => {
-    setSelectedModel(modelName)
-    localStorage.setItem('selectedModel', modelName)
-  }, [])
 
   // Save Supabase settings
   const saveSupabaseSettings = useCallback(() => {
@@ -2020,7 +2004,7 @@ function AIWebsitePowerhouse() {
     }
 
     return files
-  }, [cleanupLLMOutput])
+  }, [])
 
   // Select template
   const handleSelectTemplate = useCallback((templateKey) => {
@@ -2084,9 +2068,6 @@ function AIWebsitePowerhouse() {
     setChatHistory([])
     setCodeHistory([])
     setGenerationStats(null)
-    
-    const startTime = Date.now()
-    let tokenCount = 0
 
     const requiresBackend = needsBackend
     const canUseSupabase = supabaseEnabled && supabaseUrl && supabaseKey
@@ -2286,7 +2267,7 @@ FINAL REMINDER: Output begins with the first character of code. Output ends with
     } finally {
       setIsGenerating(false)
     }
-  ], [
+  }, [
     prompt,
     needsBackend,
     supabaseEnabled,
@@ -2424,7 +2405,7 @@ IMPORTANT: Return the COMPLETE modified code with ALL improvements integrated se
     } finally {
       setIsGenerating(false)
     }
-  ], [
+  }, [
     chatMessage,
     generatedCode,
     generatedFiles,
