@@ -11,18 +11,25 @@ import {
   CURATED_OPENROUTER_MODELS,
   CUSTOM_MODEL_ID,
   DEFAULT_OLLAMA_MODEL_ID,
-  DEFAULT_OPENROUTER_MODEL_ID,
   PRICE_LIST_VERIFIED_AT,
   formatDropdownLabel,
 } from '@/lib/models'
 import { generateStream } from '@/lib/llm'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
+import { HydrationGate } from '@/components/shared/HydrationGate'
 import { debounce } from '@/lib/utils/debounce'
 import { PROMPT_TEMPLATES } from '@/lib/prompts/templates'
 import { parseGeneratedFiles } from '@/lib/generation/parser'
 import { downloadFile, downloadAllFiles, downloadAsZip } from '@/lib/utils/download'
 import { buildSystemPrompt } from '@/lib/prompts/system-prompt'
 import { buildModifyPrompt } from '@/lib/prompts/modify-prompt'
+import { useSettingsStore } from '@/lib/store/settings-store'
+import { useIntegrationsStore } from '@/lib/store/integrations-store'
+import { useTemplatesStore } from '@/lib/store/templates-store'
+import { useGenerationStore } from '@/lib/store/generation-store'
+import { useChatStore } from '@/lib/store/chat-store'
+import { useUiStore } from '@/lib/store/ui-store'
+import { saveSnapshot, loadSnapshot, clearSnapshot, hasSnapshot } from '@/lib/store/autosave'
 
 // Memoized Deploy Modal Component
 const DeployModal = memo(({ isOpen, onClose }) => {
@@ -647,8 +654,7 @@ const GithubPanel = memo(({
   commitMessage,
   setCommitMessage,
   cloneUrl,
-  setCloneUrl,
-  uploadProgress
+  setCloneUrl
 }) => {
   if (!showPanel) return null
 
@@ -789,7 +795,7 @@ const GithubPanel = memo(({
                     {isProcessing ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Pushing Changes... {uploadProgress}%
+                        Pushing Changes...
                       </>
                     ) : (
                       'Push Changes'
@@ -1179,62 +1185,99 @@ PreviewPanel.displayName = 'PreviewPanel'
 
 // Main Component
 function AIWebsitePowerhouse() {
-  // Core State
-  const [prompt, setPrompt] = useState('')
-  const [generatedCode, setGeneratedCode] = useState('')
-  const [generatedFiles, setGeneratedFiles] = useState([])
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [chatHistory, setChatHistory] = useState([])
-  const [chatMessage, setChatMessage] = useState('')
-  const [codeHistory, setCodeHistory] = useState([])
-  const [userTemplates, setUserTemplates] = useState([])
-  
-  // UI State
-  const [showSettings, setShowSettings] = useState(false)
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [showGithubPanel, setShowGithubPanel] = useState(false)
-  const [showDeployModal, setShowDeployModal] = useState(false)
-  const [showRestoreModal, setShowRestoreModal] = useState(false)
-  const [previewMode, setPreviewMode] = useState('auto')
-  
-  // Configuration State
-  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
-  const [supabaseUrl, setSupabaseUrl] = useState('')
-  const [supabaseKey, setSupabaseKey] = useState('')
-  const [supabaseEnabled, setSupabaseEnabled] = useState(false)
-  const [githubUsername, setGithubUsername] = useState('')
-  const [githubToken, setGithubToken] = useState('')
-  const [githubEnabled, setGithubEnabled] = useState(false)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [needsBackend, _setNeedsBackend] = useState(false)
+  // Generation Store
+  const prompt = useGenerationStore((s) => s.prompt)
+  const setPrompt = useGenerationStore((s) => s.setPrompt)
+  const generatedCode = useGenerationStore((s) => s.generatedCode)
+  const setGeneratedCode = useGenerationStore((s) => s.setGeneratedCode)
+  const generatedFiles = useGenerationStore((s) => s.generatedFiles)
+  const setGeneratedFiles = useGenerationStore((s) => s.setGeneratedFiles)
+  const selectedFile = useGenerationStore((s) => s.selectedFile)
+  const setSelectedFile = useGenerationStore((s) => s.setSelectedFile)
+  const isGenerating = useGenerationStore((s) => s.isGenerating)
+  const setIsGenerating = useGenerationStore((s) => s.setIsGenerating)
+  const codeHistory = useGenerationStore((s) => s.codeHistory)
+  const setCodeHistory = useGenerationStore((s) => s.setCodeHistory)
+  const generationStats = useGenerationStore((s) => s.generationStats)
+  const setGenerationStats = useGenerationStore((s) => s.setGenerationStats)
 
-  // AI Provider Configuration
-  const [aiProvider, setAiProvider] = useState('ollama')
-  const [openrouterKey, setOpenrouterKey] = useState('')
-  const [openrouterModel, setOpenrouterModel] = useState(DEFAULT_OPENROUTER_MODEL_ID)
-  const [openrouterCustomSlug, setOpenrouterCustomSlug] = useState('')
-  const [openrouterMaxTokens, setOpenrouterMaxTokens] = useState(16000)
-  const [openrouterServerAvailable, setOpenrouterServerAvailable] = useState(null)
+  // Chat Store
+  const chatHistory = useChatStore((s) => s.chatHistory)
+  const setChatHistory = useChatStore((s) => s.setChatHistory)
+  const chatMessage = useChatStore((s) => s.chatMessage)
+  const setChatMessage = useChatStore((s) => s.setChatMessage)
 
-  // Model Parameters
-  const [numCtx, setNumCtx] = useState(32768)
-  const [temperature, setTemperature] = useState(0.7)
-  const [topP, setTopP] = useState(0.9)
-  const [topK, setTopK] = useState(40)
-  
-  // Generation Stats
-  const [generationStats, setGenerationStats] = useState(null)
-  
-  // GitHub State
-  const [isGithubProcessing, setIsGithubProcessing] = useState(false)
-  const [repoName, setRepoName] = useState('')
-  const [repoDescription, setRepoDescription] = useState('')
-  const [commitMessage, setCommitMessage] = useState('Update website')
-  const [cloneUrl, setCloneUrl] = useState('')
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [uploadProgress, _setUploadProgress] = useState(0)
-  
+  // Templates Store
+  const userTemplates = useTemplatesStore((s) => s.userTemplates)
+  const addUserTemplate = useTemplatesStore((s) => s.addUserTemplate)
+  const removeUserTemplate = useTemplatesStore((s) => s.removeUserTemplate)
+
+  // UI Store — modals/panels
+  const showSettings = useUiStore((s) => s.showSettings)
+  const setShowSettings = useUiStore((s) => s.setShowSettings)
+  const showTemplates = useUiStore((s) => s.showTemplates)
+  const setShowTemplates = useUiStore((s) => s.setShowTemplates)
+  const showGithubPanel = useUiStore((s) => s.showGithubPanel)
+  const setShowGithubPanel = useUiStore((s) => s.setShowGithubPanel)
+  const showDeployModal = useUiStore((s) => s.showDeployModal)
+  const setShowDeployModal = useUiStore((s) => s.setShowDeployModal)
+  const showRestoreModal = useUiStore((s) => s.showRestoreModal)
+  const setShowRestoreModal = useUiStore((s) => s.setShowRestoreModal)
+  const previewMode = useUiStore((s) => s.previewMode)
+  const setPreviewMode = useUiStore((s) => s.setPreviewMode)
+
+  // UI Store — OpenRouter availability probe
+  const openrouterServerAvailable = useUiStore((s) => s.openrouterServerAvailable)
+  const setOpenrouterServerAvailable = useUiStore((s) => s.setOpenrouterServerAvailable)
+
+  // UI Store — GitHub form state
+  const isGithubProcessing = useUiStore((s) => s.isGithubProcessing)
+  const setIsGithubProcessing = useUiStore((s) => s.setIsGithubProcessing)
+  const repoName = useUiStore((s) => s.repoName)
+  const setRepoName = useUiStore((s) => s.setRepoName)
+  const repoDescription = useUiStore((s) => s.repoDescription)
+  const setRepoDescription = useUiStore((s) => s.setRepoDescription)
+  const commitMessage = useUiStore((s) => s.commitMessage)
+  const setCommitMessage = useUiStore((s) => s.setCommitMessage)
+  const cloneUrl = useUiStore((s) => s.cloneUrl)
+  const setCloneUrl = useUiStore((s) => s.setCloneUrl)
+
+  // Settings Store
+  const ollamaUrl = useSettingsStore((s) => s.ollamaUrl)
+  const setOllamaUrl = useSettingsStore((s) => s.setOllamaUrl)
+  const aiProvider = useSettingsStore((s) => s.aiProvider)
+  const setAiProvider = useSettingsStore((s) => s.setAiProvider)
+  const openrouterKey = useSettingsStore((s) => s.openrouterKey)
+  const setOpenrouterKey = useSettingsStore((s) => s.setOpenrouterKey)
+  const openrouterModel = useSettingsStore((s) => s.openrouterModel)
+  const setOpenrouterModel = useSettingsStore((s) => s.setOpenrouterModel)
+  const openrouterCustomSlug = useSettingsStore((s) => s.openrouterCustomSlug)
+  const setOpenrouterCustomSlug = useSettingsStore((s) => s.setOpenrouterCustomSlug)
+  const openrouterMaxTokens = useSettingsStore((s) => s.openrouterMaxTokens)
+  const setOpenrouterMaxTokens = useSettingsStore((s) => s.setOpenrouterMaxTokens)
+  const numCtx = useSettingsStore((s) => s.numCtx)
+  const setNumCtx = useSettingsStore((s) => s.setNumCtx)
+  const temperature = useSettingsStore((s) => s.temperature)
+  const setTemperature = useSettingsStore((s) => s.setTemperature)
+  const topP = useSettingsStore((s) => s.topP)
+  const setTopP = useSettingsStore((s) => s.setTopP)
+  const topK = useSettingsStore((s) => s.topK)
+  const setTopK = useSettingsStore((s) => s.setTopK)
+
+  // Integrations Store
+  const supabaseUrl = useIntegrationsStore((s) => s.supabaseUrl)
+  const setSupabaseUrl = useIntegrationsStore((s) => s.setSupabaseUrl)
+  const supabaseKey = useIntegrationsStore((s) => s.supabaseKey)
+  const setSupabaseKey = useIntegrationsStore((s) => s.setSupabaseKey)
+  const supabaseEnabled = useIntegrationsStore((s) => s.supabaseEnabled)
+  const setSupabaseEnabled = useIntegrationsStore((s) => s.setSupabaseEnabled)
+  const githubUsername = useIntegrationsStore((s) => s.githubUsername)
+  const setGithubUsername = useIntegrationsStore((s) => s.setGithubUsername)
+  const githubToken = useIntegrationsStore((s) => s.githubToken)
+  const setGithubToken = useIntegrationsStore((s) => s.setGithubToken)
+  const githubEnabled = useIntegrationsStore((s) => s.githubEnabled)
+  const setGithubEnabled = useIntegrationsStore((s) => s.setGithubEnabled)
+
   // Refs
   const iframeRef = useRef(null)
 
@@ -1250,55 +1293,21 @@ function AIWebsitePowerhouse() {
     }
   }, [])
 
-  // Load saved settings on mount
+  // Mount-time bootstrap: hydration of persisted settings is handled by
+  // <HydrationGate>, so by the time this effect runs every persisted
+  // value (ollamaUrl, openrouterKey, etc.) is already on the store.
+  // What's left to do at mount:
+  //  1. Probe Ollama connectivity (best-effort; preserves the no-op
+  //     network ping the legacy code did so server-side issues surface
+  //     in DevTools).
+  //  2. Probe the /api/openrouter availability endpoint.
+  //  3. Surface the RestoreWorkModal if an autosave snapshot exists.
+  //
+  // The intentionally empty dep array runs this once per mount. We
+  // intentionally do NOT depend on `ollamaUrl` — re-running this on
+  // URL change would re-probe and double-prompt restore.
   useEffect(() => {
-    const savedUrl = localStorage.getItem('ollamaUrl')
-    const savedSupabaseUrl = localStorage.getItem('supabaseUrl')
-    const savedSupabaseKey = localStorage.getItem('supabaseKey')
-    const savedGithubUsername = localStorage.getItem('githubUsername')
-    const savedGithubToken = localStorage.getItem('githubToken')
-
-    if (savedUrl) setOllamaUrl(savedUrl)
-    if (savedSupabaseUrl) setSupabaseUrl(savedSupabaseUrl)
-    if (savedSupabaseKey) {
-      setSupabaseKey(savedSupabaseKey)
-      setSupabaseEnabled(true)
-    }
-    if (savedGithubUsername) setGithubUsername(savedGithubUsername)
-    if (savedGithubToken) {
-      setGithubToken(savedGithubToken)
-      setGithubEnabled(true)
-    }
-
-    // Load user templates
-    const savedUserTemplates = localStorage.getItem('aiwebsite_user_templates')
-    if (savedUserTemplates) {
-      try {
-        setUserTemplates(JSON.parse(savedUserTemplates))
-      } catch {
-        // Ignore malformed data
-      }
-    }
-
-    // Fetch available models from Ollama
-    fetchAvailableModels(savedUrl || 'http://localhost:11434')
-
-    // AI Provider hydration
-    const savedProvider = localStorage.getItem('aiProvider')
-    if (savedProvider === 'openrouter' || savedProvider === 'ollama') {
-      setAiProvider(savedProvider)
-    }
-    const savedOrKey = localStorage.getItem('openrouterKey')
-    if (savedOrKey) setOpenrouterKey(savedOrKey)
-    const savedOrModel = localStorage.getItem('openrouterModel')
-    if (savedOrModel) setOpenrouterModel(savedOrModel)
-    const savedOrCustom = localStorage.getItem('openrouterCustomSlug')
-    if (savedOrCustom) setOpenrouterCustomSlug(savedOrCustom)
-    const savedOrMaxTokens = localStorage.getItem('openrouterMaxTokens')
-    if (savedOrMaxTokens) {
-      const parsed = parseInt(savedOrMaxTokens, 10)
-      if (!isNaN(parsed) && parsed > 0) setOpenrouterMaxTokens(parsed)
-    }
+    fetchAvailableModels(ollamaUrl)
 
     // Probe server-side OpenRouter availability (best-effort)
     fetch('/api/openrouter', { method: 'GET' })
@@ -1306,23 +1315,16 @@ function AIWebsitePowerhouse() {
       .then((data) => setOpenrouterServerAvailable(Boolean(data && data.available)))
       .catch(() => setOpenrouterServerAvailable(false))
 
-    // Check for saved work
-    const savedWork = localStorage.getItem('aiwebsite_autosave')
-    if (savedWork) {
+    if (hasSnapshot()) {
       setShowRestoreModal(true)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchAvailableModels])
 
   // Auto-save with debounce
   const saveToHistory = useMemo(
     () => debounce((files, code, chat) => {
-      const workState = {
-        files,
-        code,
-        chatHistory: chat,
-        timestamp: Date.now()
-      }
-      localStorage.setItem('aiwebsite_autosave', JSON.stringify(workState))
+      saveSnapshot(files, code, chat)
     }, 2000),
     []
   )
@@ -1376,90 +1378,83 @@ function AIWebsitePowerhouse() {
 
   // Restore saved work
   const restoreSavedWork = useCallback(() => {
-    const savedWork = localStorage.getItem('aiwebsite_autosave')
-    if (savedWork) {
-      const { files, code, chatHistory: savedChat } = JSON.parse(savedWork)
-      setGeneratedFiles(files)
-      setGeneratedCode(code)
-      setChatHistory(savedChat)
-      setSelectedFile(files[0])
+    const snapshot = loadSnapshot()
+    if (snapshot) {
+      setGeneratedFiles(snapshot.files)
+      setGeneratedCode(snapshot.code)
+      setChatHistory(snapshot.chatHistory)
+      setSelectedFile(snapshot.files[0] || null)
     }
     setShowRestoreModal(false)
-  }, [])
+  }, [setGeneratedFiles, setGeneratedCode, setChatHistory, setSelectedFile, setShowRestoreModal])
 
   // Discard saved work
   const discardSavedWork = useCallback(() => {
-    localStorage.removeItem('aiwebsite_autosave')
+    clearSnapshot()
     setShowRestoreModal(false)
-  }, [])
+  }, [setShowRestoreModal])
 
   // Clear saved work
   const clearSavedWork = useCallback(() => {
     if (confirm('Are you sure you want to clear all saved work? This cannot be undone.')) {
-      localStorage.removeItem('aiwebsite_autosave')
+      clearSnapshot()
       alert('Saved work cleared successfully!')
     }
   }, [])
 
-  // Handle Ollama URL change
+  // Handle Ollama URL change. The store setter handles persistence;
+  // we still need to re-probe the new URL for connectivity.
   const handleOllamaUrlChange = useCallback((newUrl) => {
     setOllamaUrl(newUrl)
-    localStorage.setItem('ollamaUrl', newUrl)
-    // Fetch available models from new URL
     fetchAvailableModels(newUrl)
-  }, [fetchAvailableModels])
+  }, [setOllamaUrl, fetchAvailableModels])
 
-  // Save Supabase settings
+  // Save Supabase settings. The URL/key are already persisted via the
+  // Zustand store's onChange — this callback only flips the `enabled`
+  // flag and shows the confirmation, matching legacy "Save" semantics.
   const saveSupabaseSettings = useCallback(() => {
     if (supabaseUrl && supabaseKey) {
-      localStorage.setItem('supabaseUrl', supabaseUrl)
-      localStorage.setItem('supabaseKey', supabaseKey)
       setSupabaseEnabled(true)
       alert('Supabase settings saved!')
     } else {
       alert('Please fill in both Supabase URL and Key')
     }
-  }, [supabaseUrl, supabaseKey])
+  }, [supabaseUrl, supabaseKey, setSupabaseEnabled])
 
-  // Save GitHub settings
+  // Save GitHub settings. Same pattern as Supabase: the credentials
+  // already persisted on change; this only flips the `enabled` flag.
   const saveGithubSettings = useCallback(() => {
     if (githubUsername && githubToken) {
-      localStorage.setItem('githubUsername', githubUsername)
-      localStorage.setItem('githubToken', githubToken)
       setGithubEnabled(true)
       alert('GitHub settings saved!')
     } else {
       alert('Please fill in both GitHub username and token')
     }
-  }, [githubUsername, githubToken])
+  }, [githubUsername, githubToken, setGithubEnabled])
 
   // Handle AI provider change
   const handleAiProviderChange = useCallback((newProvider) => {
     setAiProvider(newProvider)
-    localStorage.setItem('aiProvider', newProvider)
-  }, [])
+  }, [setAiProvider])
 
-  // Save OpenRouter settings
+  // Save OpenRouter settings — settings already persisted via the
+  // store's onChange; this callback is now only the confirmation alert.
   const saveOpenrouterSettings = useCallback(() => {
-    localStorage.setItem('openrouterKey', openrouterKey)
-    localStorage.setItem('openrouterModel', openrouterModel)
-    localStorage.setItem('openrouterCustomSlug', openrouterCustomSlug)
-    localStorage.setItem('openrouterMaxTokens', String(openrouterMaxTokens))
     alert('OpenRouter settings saved!')
-  }, [openrouterKey, openrouterModel, openrouterCustomSlug, openrouterMaxTokens])
+  }, [])
 
   // Select template
   const handleSelectTemplate = useCallback((templateKey) => {
     const template = PROMPT_TEMPLATES[templateKey]
     setPrompt(template.prompt)
     setShowTemplates(false)
-  }, [])
+  }, [setPrompt, setShowTemplates])
 
   // Select user template
   const handleSelectUserTemplate = useCallback((template) => {
     setPrompt(template.prompt)
     setShowTemplates(false)
-  }, [])
+  }, [setPrompt, setShowTemplates])
 
   // Save current prompt as user template
   const saveUserTemplate = useCallback(() => {
@@ -1467,38 +1462,30 @@ function AIWebsitePowerhouse() {
       alert('Please enter a prompt first')
       return
     }
-    
+
     const templateName = window.prompt('Enter a name for this template:')
     if (!templateName?.trim()) return
-    
+
     const newTemplate = {
       id: Date.now().toString(),
       name: templateName.trim(),
       prompt: prompt.trim(),
       createdAt: Date.now()
     }
-    
-    setUserTemplates(prev => {
-      const updated = [...prev, newTemplate]
-      localStorage.setItem('aiwebsite_user_templates', JSON.stringify(updated))
-      return updated
-    })
-    
+
+    addUserTemplate(newTemplate)
+
     alert(`Template "${templateName}" saved!`)
-  }, [prompt])
+  }, [prompt, addUserTemplate])
 
   // Delete user template
   const deleteUserTemplate = useCallback((templateId, e) => {
     e.stopPropagation() // Prevent selecting the template
-    
+
     if (!confirm('Delete this template?')) return
-    
-    setUserTemplates(prev => {
-      const updated = prev.filter(t => t.id !== templateId)
-      localStorage.setItem('aiwebsite_user_templates', JSON.stringify(updated))
-      return updated
-    })
-  }, [])
+
+    removeUserTemplate(templateId)
+  }, [removeUserTemplate])
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return
@@ -1511,7 +1498,10 @@ function AIWebsitePowerhouse() {
     setCodeHistory([])
     setGenerationStats(null)
 
-    const requiresBackend = needsBackend
+    // `needsBackend` state was audit-flagged as dead (setter never
+    // called) and deleted in W1 PR-2. Hard-coded false here pending
+    // the prompt-builder dead-branch cleanup in W1 PR-5.
+    const requiresBackend = false
     const canUseSupabase = supabaseEnabled && supabaseUrl && supabaseKey
 
     const systemPrompt = buildSystemPrompt({
@@ -1591,7 +1581,6 @@ function AIWebsitePowerhouse() {
     }
   }, [
     prompt,
-    needsBackend,
     supabaseEnabled,
     supabaseUrl,
     supabaseKey,
@@ -1605,6 +1594,13 @@ function AIWebsitePowerhouse() {
     openrouterModel,
     openrouterCustomSlug,
     openrouterMaxTokens,
+    setIsGenerating,
+    setGeneratedCode,
+    setGeneratedFiles,
+    setSelectedFile,
+    setChatHistory,
+    setCodeHistory,
+    setGenerationStats,
   ])
 
   const handleChatModify = useCallback(async () => {
@@ -1622,7 +1618,10 @@ function AIWebsitePowerhouse() {
     setChatMessage('')
     setIsGenerating(true)
 
-    const requiresBackend = needsBackend
+    // `needsBackend` state was audit-flagged as dead (setter never
+    // called) and deleted in W1 PR-2. Hard-coded false here pending
+    // the prompt-builder dead-branch cleanup in W1 PR-5.
+    const requiresBackend = false
     const canUseSupabase = supabaseEnabled && supabaseUrl && supabaseKey
 
     const modifyPrompt = buildModifyPrompt({
@@ -1704,7 +1703,6 @@ function AIWebsitePowerhouse() {
     chatMessage,
     generatedCode,
     generatedFiles,
-    needsBackend,
     supabaseEnabled,
     supabaseUrl,
     supabaseKey,
@@ -1719,6 +1717,13 @@ function AIWebsitePowerhouse() {
     openrouterModel,
     openrouterCustomSlug,
     openrouterMaxTokens,
+    setIsGenerating,
+    setGeneratedCode,
+    setGeneratedFiles,
+    setSelectedFile,
+    setChatHistory,
+    setChatMessage,
+    setCodeHistory,
   ])
 
   // Undo last change
@@ -1733,7 +1738,7 @@ function AIWebsitePowerhouse() {
     
     const undoMessage = { role: 'assistant', content: 'Reverted to previous version' }
     setChatHistory(prev => [...prev, undoMessage])
-  }, [codeHistory])
+  }, [codeHistory, setGeneratedCode, setGeneratedFiles, setSelectedFile, setCodeHistory, setChatHistory])
 
 
   // GitHub functions
@@ -1767,7 +1772,7 @@ function AIWebsitePowerhouse() {
     } finally {
       setIsGithubProcessing(false)
     }
-  }, [repoName, repoDescription, githubToken, githubEnabled])
+  }, [repoName, repoDescription, githubToken, githubEnabled, setIsGithubProcessing, setRepoName, setRepoDescription])
 
   const cloneGithubRepo = useCallback(async () => {
     alert('Clone functionality requires server-side implementation')
@@ -1784,7 +1789,7 @@ function AIWebsitePowerhouse() {
       if (prev === 'code') return 'live'
       return 'auto'
     })
-  }, [])
+  }, [setPreviewMode])
 
   // Check if should show live preview
   const shouldShowLivePreview = useCallback(() => {
@@ -1931,7 +1936,6 @@ function AIWebsitePowerhouse() {
         setCommitMessage={setCommitMessage}
         cloneUrl={cloneUrl}
         setCloneUrl={setCloneUrl}
-        uploadProgress={uploadProgress}
       />
 
       {/* Settings Panel */}
@@ -2046,11 +2050,19 @@ function AIWebsitePowerhouse() {
   )
 }
 
-// Export wrapped in error boundary
+// Export wrapped in error boundary + hydration gate.
+//
+// HydrationGate runs the legacy-localStorage migration on first mount
+// and waits for all persisted Zustand stores (settings, integrations,
+// templates) to rehydrate before rendering <AIWebsitePowerhouse />.
+// This prevents the one-frame default-values flicker called out in
+// PLAN/Section-06-Refactor-Plan.md §3 PR-2.
 export default function AIWebsitePowerhouseWithErrorBoundary() {
   return (
     <ErrorBoundary>
-      <AIWebsitePowerhouse />
+      <HydrationGate>
+        <AIWebsitePowerhouse />
+      </HydrationGate>
     </ErrorBoundary>
   )
 }
