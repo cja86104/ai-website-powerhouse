@@ -1,0 +1,22 @@
+# Normalize all text files to LF line endings in the repo. Working trees on
+# Windows will still check out with CRLF unless the user disables it locally
+# (`git config core.autocrlf false`), but commits will always store LF — so
+# diffs stay clean across platforms.
+* text=auto eol=lf
+
+# Windows shell scripts must keep CRLF or they won't run from cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Treat binary file types as binary so git won't try to munge them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.zip binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

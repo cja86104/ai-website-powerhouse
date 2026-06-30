@@ -1,287 +1,116 @@
-# 🚀 AI Website Powerhouse
+# AI Website Powerhouse
 
-**Generate complete, professional websites using local AI models with Ollama.**
+A developer tool for generating React + Vite (and legacy HTML/CSS/JS) websites from natural-language prompts. Pluggable LLM providers — runs against a local [Ollama](https://ollama.com/) server, your own [OpenRouter](https://openrouter.ai/) account, or a host-provided OpenRouter key.
 
-A powerful, privacy-focused web application that leverages local Large Language Models to create stunning, production-ready websites through natural language prompts. No API keys required, no data leaves your machine.
-
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Next.js](https://img.shields.io/badge/Next.js-16.1.1-black)
-![React](https://img.shields.io/badge/React-19.2.0-61DAFB)
-![Ollama](https://img.shields.io/badge/Ollama-Compatible-green)
+> **Status: pre-1.0, active development.** The current public build is the single-user version. A multi-tenant SaaS rewrite is in progress; see roadmap below.
 
 ---
 
-## ✨ Features
+## What this is
 
-### 🤖 AI-Powered Generation
-- **Natural Language Input** - Describe your website in plain English and watch it come to life
-- **20 Professional Templates** - Pre-built prompts for SaaS landing pages, portfolios, e-commerce, restaurants, law firms, medical clinics, and more
-- **Intelligent Code Splitting** - Automatically separates HTML, CSS, and JavaScript into organized files
-- **Iterative Refinement** - Chat-based modification system to refine your website through conversation
+- **Provider-agnostic LLM streaming.** One internal helper (`lib/llm.ts`) drives both Ollama (NDJSON) and OpenRouter (OpenAI-style SSE) so the UI never has to know which provider produced the bytes.
+- **Three ways to call OpenRouter:**
+  1. Paste your own key in Settings — the browser calls OpenRouter directly (BYOK, your key never leaves your browser).
+  2. No user key, but the host has `OPENROUTER_API_KEY` set — calls go through `/api/openrouter` (server proxy with attribution headers).
+  3. Neither configured — OpenRouter is reported as unavailable; Ollama still works.
+- **Local-first stays local-first.** Ollama mode never makes outbound network calls beyond your Ollama server.
+- **Output formats.** React + Vite project tree (default for new generations) and a legacy single-page HTML/CSS/JS mode (retained for compatibility).
+- **No data collection.** This codebase ships no telemetry. The future SaaS build will add opt-in observability (Sentry, PostHog) gated behind clear disclosure.
 
-### 🔒 Privacy First
-- **100% Local Processing** - All AI inference runs on your machine via Ollama
-- **No Data Collection** - Your prompts and generated code never leave your computer
-- **No API Keys Required** - No OpenAI, Anthropic, or cloud AI subscriptions needed
+## What this is NOT (yet)
 
-### 💻 Developer Experience
-- **Live Preview** - Real-time preview of generated websites with hot reload
-- **Code Editor View** - Syntax-highlighted code display with file browser
-- **Multi-File Support** - Handles complex projects with multiple HTML, CSS, and JS files
-- **Download Options** - Export as individual files or bundled ZIP archive
-- **Undo Support** - Revert changes with built-in history
-
-### 🔧 Integrations
-- **GitHub Integration** - Create repositories directly from the app
-- **Supabase Ready** - Optional backend integration for dynamic features
-- **One-Click Deploy** - Deployment instructions for Netlify and Vercel
-
-### 🎨 Quality Output
-- **Production-Ready Code** - Clean, semantic HTML with modern CSS
-- **Responsive Design** - Mobile-first layouts that work on all devices
-- **Modern Aesthetics** - Gradients, animations, glassmorphism, and contemporary design patterns
+- Not multi-tenant. No auth, no projects, no billing in this build — those land in the SaaS rewrite.
+- Not "100% local." Ollama mode is local, but OpenRouter mode is a cloud call.
+- Not production-hardened for public deployment. The OpenRouter proxy route is unauthenticated; do not deploy it publicly with a real `OPENROUTER_API_KEY` without adding rate limits and a spend cap first.
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
-Before you begin, ensure you have the following installed:
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Node.js     | 20+     | Tested on 20.x and 22.x. |
+| Next.js     | 16.1.1  | Pinned in `package.json`. |
+| Ollama      | latest  | Required only if you want the local LLM path. |
+| OpenRouter account | — | Required only if you want the cloud LLM path. Free tier works for testing. |
 
-| Requirement | Version | Download |
-|-------------|---------|----------|
-| **Node.js** | 18.0+ | [nodejs.org](https://nodejs.org/) |
-| **Ollama** | Latest | [ollama.ai](https://ollama.ai/) |
-| **AI Model** | Any coding model | See below |
-
-### Recommended Ollama Models
+For Ollama, pull a coding-capable model before first run, e.g.:
 
 ```bash
-# Best quality (requires powerful GPU)
-ollama pull qwen2.5-coder:32b
-
-# Good balance of speed/quality
 ollama pull qwen2.5-coder:14b
-
-# Fast, lower resource usage
-ollama pull qwen2.5-coder:7b
-
-# Alternative options
-ollama pull codellama:13b
-ollama pull deepseek-coder:6.7b
 ```
 
----
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
+## Quick start
 
 ```bash
-git clone https:cja86104@github.com/ai-website-powerhouse
+git clone https://github.com/cja86104/ai-website-powerhouse.git
 cd ai-website-powerhouse
-```
-
-### 2. Install Dependencies
-
-```bash
 npm install
-```
-
-### 3. Start Ollama
-
-Make sure Ollama is running with your preferred model:
-
-```bash
-# Start Ollama service (if not already running)
-ollama serve
-
-# In another terminal, verify your model is available
-ollama list
-```
-
-### 4. Launch the Application
-
-```bash
+cp .env.example .env.local   # fill in only the keys you actually use
 npm run dev
 ```
 
-### 5. Open in Browser
+Then open <http://localhost:4000>. Port 4000 is intentional — it's pinned in `package.json` so existing bookmarks and tester instructions don't drift.
 
-Navigate to [http://localhost:4000](http://localhost:4000)
+## Configuration
 
----
+Open the in-app Settings panel to set:
 
-## 📖 Usage Guide
+- **Provider.** Ollama or OpenRouter.
+- **Ollama URL.** Defaults to `http://localhost:11434`. Override for remote / containerized Ollama.
+- **Ollama model.** e.g. `qwen2.5-coder:14b`.
+- **OpenRouter API key.** Pasted here for browser-direct calls. If you leave this blank, the app falls back to the server proxy (`/api/openrouter`) when `OPENROUTER_API_KEY` is set on the host.
+- **OpenRouter model.** Selected from a curated catalog with verified pricing.
+- **Sampling parameters.** Temperature, top-p, top-k, max tokens, context size.
 
-### Basic Website Generation
+Environment variables live in `.env.local` (gitignored). See `.env.example` for every variable the app currently reads plus the variables reserved for the in-progress SaaS rewrite.
 
-1. **Enter a Prompt** - Describe the website you want in the left panel
-   ```
-   Create a modern portfolio website for a photographer with a 
-   dark theme, image gallery, about section, and contact form
-   ```
+## Available scripts
 
-2. **Click Generate** - Wait for the AI to create your website (typically 30-90 seconds)
+```bash
+npm run dev      # next dev -p 4000
+npm run build    # next build
+npm run start    # next start
+npm run lint     # eslint
+npx tsc --noEmit # typecheck
+```
 
-3. **Preview & Refine** - View the live preview on the right, use chat to make changes
-   ```
-   Make the gallery images larger and add a lightbox effect
-   ```
-
-4. **Download** - Export as ZIP or individual files
-
-### Using Templates
-
-Click the **Templates** button to access 20 pre-built prompts organized by category:
-
-| Category | Templates |
-|----------|-----------|
-| **Business** | SaaS Landing Page, Creative Agency, Restaurant |
-| **E-commerce** | Fashion Store, Product Launch |
-| **Professional** | Law Firm, Medical Clinic, Real Estate |
-| **Creative** | Photography Portfolio, Music Artist, Podcast |
-| **Personal** | Developer Portfolio, Resume/CV, Wedding |
-| **Community** | Non-Profit, Event/Conference, Online Course |
-
-### Chat Modifications
-
-After generating a website, use the chat interface to make iterative changes:
-
-- "Add a newsletter signup form in the footer"
-- "Change the color scheme to blue and white"
-- "Make the navigation sticky"
-- "Add smooth scroll animations"
-- "Include a testimonials section with 3 cards"
-
-### Configuration
-
-Click the **⚙️ Settings** button to configure:
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Ollama URL** | Your Ollama server address | `http://localhost:11434` |
-| **Context Size** | Token context window | `32768` |
-| **Temperature** | Creativity level (0-1) | `0.7` |
-| **Top P** | Nucleus sampling | `0.9` |
-| **Top K** | Token selection pool | `40` |
-
----
-
-## 🔌 Optional Integrations
-
-### GitHub Integration
-
-1. Generate a [Personal Access Token](https://github.com/settings/tokens) with `repo` scope
-2. Enter your GitHub username and token in Settings
-3. Create repositories directly from the app
-
-### Supabase Integration
-
-For dynamic backend features (authentication, database, etc.):
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Copy your Project URL and Anon Key
-3. Enter credentials in Settings
-4. The AI will automatically include Supabase integration when needed
-
----
-
-## 🛠️ Development
-
-### Project Structure
+## Project structure
 
 ```
 ai-website-powerhouse/
 ├── app/
-│   ├── globals.css      # Global styles
-│   ├── layout.tsx       # Root layout
-│   └── page.tsx         # Main page
+│   ├── api/openrouter/route.ts  # server-side OpenRouter proxy
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── globals.css
 ├── components/
-│   └── AIWebsitePowerhouse.js  # Main application component
-├── public/              # Static assets
-├── package.json
-└── README.md
+│   └── AIWebsitePowerhouse.js   # single-file UI (refactor in progress)
+├── lib/
+│   ├── llm.ts                   # provider-agnostic streaming helper
+│   └── models.ts                # curated OpenRouter model catalog
+└── public/                      # static assets
 ```
 
-### Available Scripts
+## Roadmap
 
-```bash
-# Development server (port 4000)
-npm run dev
+The single-user codebase is being rewritten into a multi-tenant SaaS with auth, billing, project persistence, live preview via Sandpack, and one-click deploy to Vercel and GitHub. The OSS repo will remain self-hostable via Docker Compose under the Functional Source License (see Licensing below).
 
-# Production build
-npm run build
+The rewrite is happening in this repo on `main`. Follow commits and releases for progress.
 
-# Start production server
-npm start
+## Contributing
 
-# Run linting
-npm run lint
-```
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Issues and pull requests welcome. For any change beyond a small bug fix or doc tweak, please open an issue to discuss before writing code.
 
-### Tech Stack
+## Reporting a security vulnerability
 
-- **Framework**: Next.js 16.1.1
-- **UI Library**: React 19.2.0
-- **Styling**: Tailwind CSS 4.0
-- **Icons**: Lucide React
-- **Bundling**: JSZip (for downloads)
-- **AI Backend**: Ollama (local)
+See [SECURITY.md](./SECURITY.md). **Do not file public issues for security vulnerabilities.**
 
----
+## Licensing
 
-## 🌐 Deployment
+Licensed under the [Functional Source License, Version 1.1, ALv2 Future License](./LICENSE) (FSL-1.1-ALv2). In plain English:
 
-### Deploy to Vercel
+- You can use, modify, and redistribute this code for any purpose **except** offering a substantially similar hosted product or service that competes with us.
+- Two years after each release, that release converts automatically to the Apache License 2.0.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/ai-website-powerhouse)
-
-### Deploy to Netlify
-
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/yourusername/ai-website-powerhouse)
-
-> **Note**: The deployed app will still require users to run Ollama locally or provide a remote Ollama URL.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- [Ollama](https://ollama.ai/) - Local LLM runtime
-- [Next.js](https://nextjs.org/) - React framework
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS
-- [Lucide](https://lucide.dev/) - Beautiful icons
-
----
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ai-website-powerhouse/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ai-website-powerhouse/discussions)
-
----
-
-<p align="center">
-  Made with ❤️ by developers, for developers
-</p>
-
-<p align="center">
-  <a href="#-ai-website-powerhouse">Back to Top ↑</a>
-</p>
+If you want to use AIWP commercially in a way the FSL does not permit, contact the maintainer to discuss licensing.
