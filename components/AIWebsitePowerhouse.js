@@ -2018,8 +2018,6 @@ function AIWebsitePowerhouse() {
         files.push({ name: filename, content: cleaned })
       }
     }
-      }
-    }
 
     return files
   }, [cleanupLLMOutput])
