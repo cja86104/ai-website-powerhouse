@@ -25,12 +25,19 @@ export interface CodeHistoryEntry {
 }
 
 /**
- * Placeholder for future per-run generation telemetry (token counts,
- * wall-clock time, cost). Today the legacy component only ever sets
- * this to `null`, so the type is fixed to `null` and will be widened
- * when real stats land in W5.
+ * Per-run generation telemetry (wall-clock time, token count, tokens
+ * per second). Today the legacy component only ever writes `null` to
+ * this field — the JSX in `FileBrowser` that reads `.time`/`.tokens`
+ * /`.speed` is behavior-dead until W5 wires real stats via the
+ * `generateStream` `onDone` callback. The type is defined now so the
+ * extracted `FileBrowser.tsx` compiles against the actual shape
+ * instead of `never`.
  */
-export type GenerationStats = null;
+export interface GenerationStats {
+  time: number;
+  tokens: number;
+  speed: number;
+}
 
 export interface GenerationState {
   prompt: string;
@@ -53,8 +60,8 @@ export interface GenerationState {
     updater: CodeHistoryEntry[] | ((prev: CodeHistoryEntry[]) => CodeHistoryEntry[]),
   ) => void;
 
-  generationStats: GenerationStats;
-  setGenerationStats: (value: GenerationStats) => void;
+  generationStats: GenerationStats | null;
+  setGenerationStats: (value: GenerationStats | null) => void;
 }
 
 export const useGenerationStore = create<GenerationState>()((set) => ({
