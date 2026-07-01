@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import {
-  Send, Settings, Loader2, Download, Code, FileCode, FolderOpen,
+  Send, Loader2, Download,
   X, Github, Sliders, Database, GitBranch, Upload,
-  CloudDownload, Eye, Archive, Trash2, Undo,
+  Archive, Trash2, Undo,
   Cloud
 } from 'lucide-react'
 import {
@@ -17,15 +17,16 @@ import {
 import { generateStream } from '@/lib/llm'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import { HydrationGate } from '@/components/shared/HydrationGate'
+import { Header } from '@/components/layout/Header'
+import { GenerationPanel } from '@/components/generation/GenerationPanel'
+import { PreviewPanel } from '@/components/preview/PreviewPanel'
+import { FileBrowser } from '@/components/files/FileBrowser'
 import { debounce } from '@/lib/utils/debounce'
-import { PROMPT_TEMPLATES } from '@/lib/prompts/templates'
 import { parseGeneratedFiles } from '@/lib/generation/parser'
-import { downloadFile, downloadAllFiles, downloadAsZip } from '@/lib/utils/download'
 import { buildSystemPrompt } from '@/lib/prompts/system-prompt'
 import { buildModifyPrompt } from '@/lib/prompts/modify-prompt'
 import { useSettingsStore } from '@/lib/store/settings-store'
 import { useIntegrationsStore } from '@/lib/store/integrations-store'
-import { useTemplatesStore } from '@/lib/store/templates-store'
 import { useGenerationStore } from '@/lib/store/generation-store'
 import { useChatStore } from '@/lib/store/chat-store'
 import { useUiStore } from '@/lib/store/ui-store'
@@ -813,140 +814,7 @@ const GithubPanel = memo(({
 
 GithubPanel.displayName = 'GithubPanel'
 
-// Memoized Generation Panel with Template Grid
-const GenerationPanel = memo(({
-  prompt,
-  onPromptChange,
-  onGenerate,
-  isGenerating,
-  onSelectTemplate,
-  showTemplates,
-  setShowTemplates,
-  userTemplates,
-  onSaveTemplate,
-  onSelectUserTemplate,
-  onDeleteUserTemplate
-}) => {
-  // Group templates by category
-  const templatesByCategory = useMemo(() => {
-    const categories = {}
-    Object.entries(PROMPT_TEMPLATES).forEach(([key, template]) => {
-      const category = template.category || 'Other'
-      if (!categories[category]) {
-        categories[category] = []
-      }
-      categories[category].push({ key, ...template })
-    })
-    return categories
-  }, [])
-
-  return (
-    <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-orange-500/30 shadow-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-orange-100">Generate Website</h2>
-        <button
-          onClick={() => setShowTemplates(!showTemplates)}
-          className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium"
-        >
-          {showTemplates ? 'Hide Templates' : 'Show Templates'}
-        </button>
-      </div>
-
-      {showTemplates && (
-        <div className="mb-4 max-h-[400px] overflow-y-auto bg-[#1a1a2e] rounded-lg p-4 border border-purple-500/20">
-          <h3 className="text-lg font-semibold text-purple-100 mb-3">Professional Templates</h3>
-          {Object.entries(templatesByCategory).map(([category, templates]) => (
-            <div key={category} className="mb-4">
-              <h4 className="text-sm font-semibold text-purple-300 mb-2 uppercase tracking-wide">
-                {category}
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {templates.map((template) => (
-                  <button
-                    key={template.key}
-                    onClick={() => onSelectTemplate(template.key)}
-                    className="px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 text-purple-200 rounded-lg transition-all text-left text-sm"
-                  >
-                    {template.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          
-          {/* User Templates Section */}
-          {userTemplates.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-purple-500/30">
-              <h4 className="text-sm font-semibold text-green-300 mb-2 uppercase tracking-wide">
-                ⭐ My Templates
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {userTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="group relative"
-                  >
-                    <button
-                      onClick={() => onSelectUserTemplate(template)}
-                      className="w-full px-3 py-2 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/40 text-green-200 rounded-lg transition-all text-left text-sm pr-8"
-                    >
-                      {template.name}
-                    </button>
-                    <button
-                      onClick={(e) => onDeleteUserTemplate(template.id, e)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-red-400/50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete template"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <textarea
-        value={prompt}
-        onChange={(e) => onPromptChange(e.target.value)}
-        placeholder="Describe the website you want to create... (or select a template above)"
-        className="w-full h-48 px-4 py-3 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 resize-none focus:outline-none focus:border-orange-500/50 mb-3"
-      />
-
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={onSaveTemplate}
-          disabled={!prompt.trim()}
-          className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          ⭐ Save as Template
-        </button>
-      </div>
-
-      <button
-        onClick={onGenerate}
-        disabled={isGenerating || !prompt.trim()}
-        data-shortcut="generate"
-        className="w-full py-4 px-6 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        {isGenerating ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Code className="w-5 h-5" />
-            Generate Website
-          </>
-        )}
-      </button>
-    </div>
-  )
-})
-
-GenerationPanel.displayName = 'GenerationPanel'
+// GenerationPanel extracted in W1 PR-3 -> components/generation/GenerationPanel.tsx
 
 // Memoized Chat Interface
 const ChatInterface = memo(({
@@ -1026,168 +894,15 @@ const ChatInterface = memo(({
 
 ChatInterface.displayName = 'ChatInterface'
 
-// Memoized File Browser
-const FileBrowser = memo(({
-  files,
-  selectedFile,
-  onSelectFile,
-  onDownloadAll,
-  onDownloadZip,
-  onOpenDeployModal,
-  generationStats
-}) => {
-  const hasFiles = files.length > 0
+// FileBrowser extracted in W1 PR-3 -> components/files/FileBrowser.tsx
 
-  return (
-    <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-blue-500/30 shadow-2xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-blue-100 flex items-center gap-2">
-          <FolderOpen className="w-6 h-6" />
-          Generated Files
-        </h2>
-        {hasFiles && (
-          <div className="flex gap-2">
-            <button
-              onClick={onDownloadZip}
-              data-shortcut="download-zip"
-              className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-            >
-              <Archive className="w-4 h-4" />
-              ZIP
-            </button>
-            <button
-              onClick={onDownloadAll}
-              className="px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-            >
-              <Download className="w-4 h-4" />
-              All
-            </button>
-            <button
-              onClick={onOpenDeployModal}
-              className="px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-            >
-              <CloudDownload className="w-4 h-4" />
-              Deploy
-            </button>
-          </div>
-        )}
-      </div>
-
-      {hasFiles ? (
-        <div className="space-y-3">
-          <div className="flex gap-2 flex-wrap">
-            {files.map((file) => (
-              <button
-                key={file.name}
-                onClick={() => onSelectFile(file)}
-                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${
-                  selectedFile?.name === file.name
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg'
-                    : 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30'
-                }`}
-              >
-                <FileCode className="w-4 h-4" />
-                {file.name}
-              </button>
-            ))}
-          </div>
-          {generationStats && (
-            <div className="flex gap-4 text-xs text-blue-300/70 pt-2 border-t border-blue-500/20">
-              <span>⏱️ {generationStats.time}s</span>
-              <span>📝 {generationStats.tokens.toLocaleString()} tokens</span>
-              <span>⚡ {generationStats.speed} tok/s</span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="text-center py-8 text-blue-300">
-          No files generated yet. Create a website to get started!
-        </div>
-      )}
-    </div>
-  )
-})
-
-FileBrowser.displayName = 'FileBrowser'
-
-// Memoized Preview Panel
-const PreviewPanel = memo(({
-  selectedFile,
-  previewMode,
-  onTogglePreview,
-  onDownloadFile,
-  iframeRef,
-  shouldShowLivePreview,
-  getCombinedPreviewContent
-}) => {
-  const previewContent = useMemo(() => {
-    if (!selectedFile) return ''
-    
-    if (previewMode === 'live' && shouldShowLivePreview()) {
-      return getCombinedPreviewContent()
-    }
-    
-    return selectedFile.content
-  }, [selectedFile, previewMode, shouldShowLivePreview, getCombinedPreviewContent])
-
-  return (
-    <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-green-500/30 shadow-2xl p-6 flex-1 flex flex-col min-h-0">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-green-100 flex items-center gap-2">
-          <Eye className="w-6 h-6" />
-          Preview
-        </h2>
-        {selectedFile && (
-          <div className="flex gap-2">
-            <button
-              onClick={onTogglePreview}
-              className="px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium"
-            >
-              {previewMode === 'auto' ? 'Auto' : previewMode === 'code' ? 'Code' : 'Live'}
-            </button>
-            <button
-              onClick={onDownloadFile}
-              className="px-3 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </button>
-          </div>
-        )}
-      </div>
-
-      {selectedFile ? (
-        <div className="flex-1 overflow-hidden rounded-lg border border-green-500/20 min-h-0 max-h-[calc(100vh-350px)]">
-          {(previewMode === 'live' && shouldShowLivePreview()) ? (
-            <iframe
-              ref={iframeRef}
-              srcDoc={previewContent}
-              className="w-full h-full bg-white"
-              title="Preview"
-              sandbox="allow-scripts"
-            />
-          ) : (
-            <pre className="h-full overflow-auto p-4 bg-[#1a1a2e] text-green-100 text-sm font-mono">
-              {previewContent}
-            </pre>
-          )}
-        </div>
-      ) : (
-        <div className="flex-1 flex items-center justify-center text-green-300">
-          Select a file to preview
-        </div>
-      )}
-    </div>
-  )
-})
-
-PreviewPanel.displayName = 'PreviewPanel'
+// PreviewPanel extracted in W1 PR-3 -> components/preview/PreviewPanel.tsx
 
 // Main Component
 function AIWebsitePowerhouse() {
-  // Generation Store
+  // Generation Store — `prompt` is read for the generate call; the write
+  // side (`setPrompt`) moved into PromptForm/TemplatePicker with PR-3.
   const prompt = useGenerationStore((s) => s.prompt)
-  const setPrompt = useGenerationStore((s) => s.setPrompt)
   const generatedCode = useGenerationStore((s) => s.generatedCode)
   const setGeneratedCode = useGenerationStore((s) => s.setGeneratedCode)
   const generatedFiles = useGenerationStore((s) => s.generatedFiles)
@@ -1198,7 +913,6 @@ function AIWebsitePowerhouse() {
   const setIsGenerating = useGenerationStore((s) => s.setIsGenerating)
   const codeHistory = useGenerationStore((s) => s.codeHistory)
   const setCodeHistory = useGenerationStore((s) => s.setCodeHistory)
-  const generationStats = useGenerationStore((s) => s.generationStats)
   const setGenerationStats = useGenerationStore((s) => s.setGenerationStats)
 
   // Chat Store
@@ -1207,24 +921,19 @@ function AIWebsitePowerhouse() {
   const chatMessage = useChatStore((s) => s.chatMessage)
   const setChatMessage = useChatStore((s) => s.setChatMessage)
 
-  // Templates Store
-  const userTemplates = useTemplatesStore((s) => s.userTemplates)
-  const addUserTemplate = useTemplatesStore((s) => s.addUserTemplate)
-  const removeUserTemplate = useTemplatesStore((s) => s.removeUserTemplate)
+  // Templates Store — no selectors needed on the main component in
+  // PR-3 (all user-template read/write moved into TemplatePicker /
+  // PromptForm). Kept in dependency graph via those subcomponents.
 
-  // UI Store — modals/panels
+  // UI Store — modals/panels + preview mode
   const showSettings = useUiStore((s) => s.showSettings)
   const setShowSettings = useUiStore((s) => s.setShowSettings)
-  const showTemplates = useUiStore((s) => s.showTemplates)
-  const setShowTemplates = useUiStore((s) => s.setShowTemplates)
   const showGithubPanel = useUiStore((s) => s.showGithubPanel)
   const setShowGithubPanel = useUiStore((s) => s.setShowGithubPanel)
   const showDeployModal = useUiStore((s) => s.showDeployModal)
   const setShowDeployModal = useUiStore((s) => s.setShowDeployModal)
   const showRestoreModal = useUiStore((s) => s.showRestoreModal)
   const setShowRestoreModal = useUiStore((s) => s.setShowRestoreModal)
-  const previewMode = useUiStore((s) => s.previewMode)
-  const setPreviewMode = useUiStore((s) => s.setPreviewMode)
 
   // UI Store — OpenRouter availability probe
   const openrouterServerAvailable = useUiStore((s) => s.openrouterServerAvailable)
@@ -1278,8 +987,7 @@ function AIWebsitePowerhouse() {
   const githubEnabled = useIntegrationsStore((s) => s.githubEnabled)
   const setGithubEnabled = useIntegrationsStore((s) => s.setGithubEnabled)
 
-  // Refs
-  const iframeRef = useRef(null)
+  // Refs — iframeRef moved into PreviewPanel in W1 PR-3.
 
   // Connectivity probe for Ollama. The model-picker UI was unwired during the
   // OpenRouter restructure; this preserves a no-op network check (and the
@@ -1443,49 +1151,8 @@ function AIWebsitePowerhouse() {
     alert('OpenRouter settings saved!')
   }, [])
 
-  // Select template
-  const handleSelectTemplate = useCallback((templateKey) => {
-    const template = PROMPT_TEMPLATES[templateKey]
-    setPrompt(template.prompt)
-    setShowTemplates(false)
-  }, [setPrompt, setShowTemplates])
-
-  // Select user template
-  const handleSelectUserTemplate = useCallback((template) => {
-    setPrompt(template.prompt)
-    setShowTemplates(false)
-  }, [setPrompt, setShowTemplates])
-
-  // Save current prompt as user template
-  const saveUserTemplate = useCallback(() => {
-    if (!prompt.trim()) {
-      alert('Please enter a prompt first')
-      return
-    }
-
-    const templateName = window.prompt('Enter a name for this template:')
-    if (!templateName?.trim()) return
-
-    const newTemplate = {
-      id: Date.now().toString(),
-      name: templateName.trim(),
-      prompt: prompt.trim(),
-      createdAt: Date.now()
-    }
-
-    addUserTemplate(newTemplate)
-
-    alert(`Template "${templateName}" saved!`)
-  }, [prompt, addUserTemplate])
-
-  // Delete user template
-  const deleteUserTemplate = useCallback((templateId, e) => {
-    e.stopPropagation() // Prevent selecting the template
-
-    if (!confirm('Delete this template?')) return
-
-    removeUserTemplate(templateId)
-  }, [removeUserTemplate])
+  // Template select/save/delete callbacks moved into TemplatePicker
+  // and PromptForm in W1 PR-3 (components/generation/).
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return
@@ -1782,53 +1449,9 @@ function AIWebsitePowerhouse() {
     alert('Push functionality requires server-side implementation')
   }, [])
 
-  // Toggle preview mode
-  const togglePreviewMode = useCallback(() => {
-    setPreviewMode(prev => {
-      if (prev === 'auto') return 'code'
-      if (prev === 'code') return 'live'
-      return 'auto'
-    })
-  }, [setPreviewMode])
-
-  // Check if should show live preview
-  const shouldShowLivePreview = useCallback(() => {
-    if (previewMode === 'code') return false
-    if (previewMode === 'live') return true
-    return selectedFile?.name.endsWith('.html')
-  }, [previewMode, selectedFile])
-
-  // Get combined preview content
-  const getCombinedPreviewContent = useCallback(() => {
-    const htmlFile = generatedFiles.find(f => f.name.endsWith('.html'))
-    if (!htmlFile) return selectedFile?.content || ''
-
-    let content = htmlFile.content
-
-    // Remove external CSS links that would fail in iframe (keep CDN/http links)
-    content = content.replace(/<link[^>]*href=["'](?!https?:\/\/)[^"']*\.css["'][^>]*\/?>/gi, '')
-    
-    // Remove external JS script tags that would fail in iframe (keep CDN/http links)
-    content = content.replace(/<script[^>]*src=["'](?!https?:\/\/)[^"']*\.js["'][^>]*><\/script>/gi, '')
-
-    // Fix unresolved template literals like ${item.image} - replace with placeholder images
-    content = content.replace(/\$\{[^}]*image[^}]*\}/gi, 'https://placehold.co/400x300?text=Image')
-    content = content.replace(/\$\{[^}]*\}/g, 'Placeholder')
-
-    // Inject CSS from generated files
-    const cssFile = generatedFiles.find(f => f.name.endsWith('.css'))
-    if (cssFile) {
-      content = content.replace('</head>', `<style>\n${cssFile.content}\n</style>\n</head>`)
-    }
-
-    // Inject JS from generated files  
-    const jsFile = generatedFiles.find(f => f.name.endsWith('.js'))
-    if (jsFile) {
-      content = content.replace('</body>', `<script>\n${jsFile.content}\n</script>\n</body>`)
-    }
-
-    return content
-  }, [generatedFiles, selectedFile])
+  // Preview mode toggle, shouldShowLivePreview, and
+  // getCombinedPreviewContent moved into PreviewPanel in W1 PR-3
+  // (components/preview/PreviewPanel.tsx).
 
   // Memoized values
   const hasGeneratedCode = useMemo(() => generatedCode.length > 0, [generatedCode])
@@ -1856,68 +1479,8 @@ function AIWebsitePowerhouse() {
         onClose={() => setShowDeployModal(false)}
       />
 
-      {/* Header */}
-      <header className="bg-gradient-to-r from-[#ff6b35]/20 to-[#f7931e]/20 backdrop-blur-sm border-b border-orange-500/20">
-        <div className="max-w-[1800px] mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#ff6b35] to-[#f7931e] bg-clip-text text-transparent">
-              AI Website Powerhouse
-            </h1>
-            {supabaseEnabled && (
-              <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full text-green-300 text-sm font-medium flex items-center gap-1">
-                <Database className="w-3 h-3" />
-                Full-Stack
-              </span>
-            )}
-            {githubEnabled && (
-              <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full text-purple-300 text-sm font-medium flex items-center gap-1">
-                <Github className="w-3 h-3" />
-                GitHub
-              </span>
-            )}
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
-                aiProvider === 'ollama'
-                  ? 'bg-orange-500/20 border border-orange-500/30 text-orange-300'
-                  : 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-300'
-              }`}
-              title={
-                aiProvider === 'ollama'
-                  ? `Local Ollama at ${ollamaUrl}`
-                  : openrouterKey.trim()
-                  ? 'OpenRouter (your key)'
-                  : 'OpenRouter (server key)'
-              }
-            >
-              <Cloud className="w-3 h-3" />
-              {aiProvider === 'ollama'
-                ? `Ollama · ${DEFAULT_OLLAMA_MODEL_ID}`
-                : `OpenRouter · ${
-                    openrouterModel === CUSTOM_MODEL_ID
-                      ? openrouterCustomSlug.trim() || '(no model)'
-                      : openrouterModel
-                  }`}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {githubEnabled && (
-              <button
-                onClick={() => setShowGithubPanel(!showGithubPanel)}
-                className="p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors"
-                title="GitHub Actions"
-              >
-                <Github className="w-6 h-6 text-purple-300" />
-              </button>
-            )}
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 transition-colors"
-            >
-              <Settings className="w-6 h-6 text-orange-300" />
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Header — extracted in W1 PR-3 -> components/layout/Header.tsx */}
+      <Header />
 
       {/* GitHub Panel */}
       <GithubPanel
@@ -1997,19 +1560,7 @@ function AIWebsitePowerhouse() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
 
           <div className="lg:col-span-4 flex flex-col gap-6">
-            <GenerationPanel
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              onGenerate={handleGenerate}
-              isGenerating={isGenerating}
-              onSelectTemplate={handleSelectTemplate}
-              showTemplates={showTemplates}
-              setShowTemplates={setShowTemplates}
-              userTemplates={userTemplates}
-              onSaveTemplate={saveUserTemplate}
-              onSelectUserTemplate={handleSelectUserTemplate}
-              onDeleteUserTemplate={deleteUserTemplate}
-            />
+            <GenerationPanel onGenerate={handleGenerate} />
 
             <ChatInterface
               chatHistory={chatHistory}
@@ -2024,25 +1575,9 @@ function AIWebsitePowerhouse() {
           </div>
 
           <div className="lg:col-span-8 flex flex-col gap-4 overflow-hidden min-h-0">
-            <FileBrowser
-              files={generatedFiles}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
-              onDownloadAll={() => downloadAllFiles(generatedFiles)}
-              onDownloadZip={() => downloadAsZip(generatedFiles)}
-              onOpenDeployModal={() => setShowDeployModal(true)}
-              generationStats={generationStats}
-            />
+            <FileBrowser />
 
-            <PreviewPanel
-              selectedFile={selectedFile}
-              previewMode={previewMode}
-              onTogglePreview={togglePreviewMode}
-              onDownloadFile={() => downloadFile(selectedFile)}
-              iframeRef={iframeRef}
-              shouldShowLivePreview={shouldShowLivePreview}
-              getCombinedPreviewContent={getCombinedPreviewContent}
-            />
+            <PreviewPanel />
           </div>
         </div>
       </div>
