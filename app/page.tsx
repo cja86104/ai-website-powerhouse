@@ -1,5 +1,5 @@
-import AIWebsitePowerhouse from '@/components/AIWebsitePowerhouse'
+import Builder from '@/components/Builder'
 
 export default function Home() {
-  return <AIWebsitePowerhouse />
+  return <Builder />
 }

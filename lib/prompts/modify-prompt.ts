@@ -2,21 +2,23 @@
  * AI Website Powerhouse — chat-modify prompt
  *
  * Lifted verbatim from the legacy `components/AIWebsitePowerhouse.js`
- * monolith as part of the W1 PR-1 extraction. The template literal
- * bodies (base + optional supabase section + critical output rules) are
- * **byte-for-byte identical** to the legacy code; any deviation will
- * change what the LLM receives during chat-modify rounds and risks
- * regressing modification quality.
+ * monolith in W1 PR-1. The template literal bodies are **byte-for-byte
+ * identical** to the legacy code; any deviation changes what the LLM
+ * receives during chat-modify rounds and risks regressing modification
+ * quality.
  *
- * The legacy call site now calls `buildModifyPrompt(...)` and embeds
- * the result as the single `user` message of the `generateStream`
- * call inside `handleChatModify`.
+ * W1 PR-5 dead-branch cleanup (Section 6 §7 item 1): the
+ * `requiresBackend` SUPABASE IS AVAILABLE section was removed. The
+ * flag was hard-coded `false` at every call site since the PR-2
+ * dead-state deletion, so the branch was unreachable and the
+ * always-taken path — base template + critical output rules — is
+ * unchanged byte-for-byte. Backend-aware prompting returns properly
+ * with the W5 React/Vite prompt rewrite (Section 6 §11).
  *
  * Unit-test gap (acknowledged): the project's test framework is
  * scheduled for W11 (Vitest per Section 9 sprint plan). Byte-identical
- * preservation is enforced here by direct source-to-source comparison
- * against the legacy template — see git history of this PR for the
- * verbatim copy.
+ * preservation is enforced by direct source-to-source comparison
+ * against the legacy template — see git history.
  */
 
 /** Options consumed by {@link buildModifyPrompt}. */
@@ -32,40 +34,20 @@ export interface BuildModifyPromptOptions {
    * chat input.
    */
   chatMessage: string;
-  /**
-   * Whether the user's request triggers the "needs backend" code path.
-   * As of W1 PR-1 this is always `false` at the call site because the
-   * setter is never called — see audit notes. The arg is preserved so
-   * the builder remains compatible with the legacy shape during PR-2
-   * dead-code cleanup.
-   */
-  requiresBackend: boolean;
-  /**
-   * Whether the user has wired Supabase credentials in Settings. Only
-   * checked when `requiresBackend` is true.
-   */
-  canUseSupabase: boolean;
-  /**
-   * The Supabase project URL. Interpolated into the SUPABASE IS
-   * AVAILABLE block. Empty string is fine when `canUseSupabase` is
-   * false.
-   */
-  supabaseUrl: string;
 }
 
 /**
- * Construct the user-role message for a chat-modify round. The output
- * is the concatenation (in order) of:
- *   1. Base instruction template with the current code and the
- *      requested modification interpolated.
- *   2. Optional SUPABASE IS AVAILABLE section, iff `requiresBackend`
- *      and `canUseSupabase`.
- *   3. CRITICAL OUTPUT RULES (always present).
+ * Construct the user-role message for a chat-modify round: the base
+ * instruction template with the current code and the requested
+ * modification interpolated, followed by the CRITICAL OUTPUT RULES.
  */
 export function buildModifyPrompt(opts: BuildModifyPromptOptions): string {
-  const { generatedCode, chatMessage, requiresBackend, canUseSupabase, supabaseUrl } = opts;
+  const { generatedCode, chatMessage } = opts;
 
-  let modifyPrompt = `You are an expert developer refining a professional website. 
+  // NOTE: the `\x20` after "website." reproduces the trailing space in
+  // the legacy byte-identical template without leaving literal trailing
+  // whitespace in this source file. Do not remove it.
+  let modifyPrompt = `You are an expert developer refining a professional website.\x20
 
 CURRENT CODE:
 ${generatedCode}
@@ -80,15 +62,6 @@ QUALITY REQUIREMENTS:
 - Think: "How would a senior developer implement this?"
 - Add smooth transitions and animations for any new UI elements
 - Ensure the modification integrates seamlessly with existing design`;
-
-  if (requiresBackend && canUseSupabase) {
-    modifyPrompt += `
-
-SUPABASE IS AVAILABLE:
-- URL: ${supabaseUrl}
-- You can add authentication, database operations, or real-time features
-- Use the Supabase JS library from CDN`;
-  }
 
   modifyPrompt += `
 

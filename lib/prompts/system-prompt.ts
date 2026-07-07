@@ -2,58 +2,31 @@
  * AI Website Powerhouse — initial-generation system prompt
  *
  * Lifted verbatim from the legacy `components/AIWebsitePowerhouse.js`
- * monolith as part of the W1 PR-1 extraction. The template literal
- * bodies (base + supabase variant + backend-no-supabase variant + final
- * reminder) are **byte-for-byte identical** to the legacy code; any
- * deviation will change what the LLM receives and risks regressing
- * generation quality.
+ * monolith in W1 PR-1. The template literal bodies are **byte-for-byte
+ * identical** to the legacy code; any deviation changes what the LLM
+ * receives and risks regressing generation quality.
  *
- * Per Section 6 §3 PR-1 risk mitigation: this builder is the single
- * source of truth for the initial-generation system prompt. The legacy
- * call site now calls `buildSystemPrompt(...)` and embeds the result as
- * the `system` message of the `generateStream` call.
+ * W1 PR-5 dead-branch cleanup (Section 6 §7 item 1): the
+ * `requiresBackend` Supabase/no-Supabase variants were removed. The
+ * flag was hard-coded `false` at every call site since the PR-2
+ * dead-state deletion (`needsBackend` setter was never called), so the
+ * branches were unreachable and the always-taken path — base template
+ * + final reminder — is unchanged byte-for-byte. Backend-aware
+ * prompting returns properly with the W5 React/Vite prompt rewrite
+ * (Section 6 §11).
  *
  * Unit-test gap (acknowledged): the project's test framework is
  * scheduled for W11 (Vitest per Section 9 sprint plan). Until then,
  * "byte-identical" is enforced by direct source-to-source comparison
- * against the legacy template — see git history of this PR for the
- * verbatim copy.
+ * against the legacy template — see git history.
  */
-
-/** Options consumed by {@link buildSystemPrompt}. */
-export interface BuildSystemPromptOptions {
-  /**
-   * Whether the user's request triggers the "needs backend" code path.
-   * Today this is always `false` at the call site because the
-   * `needsBackend` setter is never called — see audit notes. The arg
-   * is preserved so the builder remains compatible with the legacy
-   * shape during PR-2 dead-code cleanup.
-   */
-  requiresBackend: boolean;
-  /**
-   * Whether the user has wired Supabase credentials in Settings. Only
-   * checked when `requiresBackend` is true.
-   */
-  canUseSupabase: boolean;
-  /**
-   * The Supabase project URL. Interpolated into the SUPABASE_URL
-   * constant of the generated boilerplate. Empty string is fine when
-   * `canUseSupabase` is false.
-   */
-  supabaseUrl: string;
-}
 
 /**
- * Construct the system message for the initial website generation. The
- * output is the concatenation (in order) of:
- *   1. Base elite-developer template (always present)
- *   2. Either the Supabase variant or the no-Supabase backend variant,
- *      iff `requiresBackend` is true
- *   3. Final reminder about output bracketing
+ * Construct the system message for the initial website generation:
+ * the base elite-developer template followed by the final reminder
+ * about output bracketing.
  */
-export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
-  const { requiresBackend, canUseSupabase, supabaseUrl } = opts;
-
+export function buildSystemPrompt(): string {
   let systemPrompt = `You are an elite web developer with 15+ years of experience building production applications. Create a sophisticated, feature-rich, professional-grade website.
 
 CRITICAL OUTPUT FORMAT — THIS RULE OVERRIDES EVERYTHING ELSE BELOW:
@@ -140,41 +113,6 @@ EXAMPLES OF GOING ABOVE AND BEYOND:
 THINK BIGGER:
 Ask yourself: "If this was my portfolio piece to show potential clients, would I be proud of it?"
 Add features that demonstrate technical skill and attention to detail.`;
-
-  if (requiresBackend && canUseSupabase) {
-    systemPrompt += `
-
-SUPABASE BACKEND INTEGRATION (ENABLED):
-The user has Supabase configured. Include these capabilities when relevant:
-
-SUPABASE SETUP IN CODE:
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  const SUPABASE_URL = '${supabaseUrl}'
-  const SUPABASE_KEY = 'YOUR_ANON_KEY_HERE'
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
-</script>
-
-AUTHENTICATION FEATURES:
-- Sign up: supabase.auth.signUp({ email, password })
-- Sign in: supabase.auth.signInWithPassword({ email, password })
-- Sign out: supabase.auth.signOut()
-- Get user: supabase.auth.getUser()
-
-DATABASE OPERATIONS:
-- Insert: supabase.from('table').insert({ data })
-- Select: supabase.from('table').select('*')
-- Update: supabase.from('table').update({ data }).eq('id', id)
-- Delete: supabase.from('table').delete().eq('id', id)`;
-  } else if (requiresBackend && !canUseSupabase) {
-    systemPrompt += `
-
-BACKEND FEATURES REQUESTED (NO SUPABASE):
-The user requested backend features but hasn't configured Supabase yet.
-- Create a frontend-only version with localStorage for data persistence
-- Add JavaScript comments noting where Supabase integration would go
-- Make the app functional with localStorage as a temporary backend`;
-  }
 
   systemPrompt += `
 
