@@ -23,6 +23,10 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import type { GeneratedFile } from "@/lib/generation/types";
+import { serializeProjectFiles } from "@/lib/generation/project-parser";
+
+/** Frameworks the V1 UI exposes (schema also reserves 'next' for LATER+). */
+export type ProjectFramework = "react-vite" | "html";
 
 /** Chat message shape shared with the client stores. */
 export interface WorkspaceMessage {
@@ -34,6 +38,8 @@ export interface WorkspaceMessage {
 export interface WorkspacePayload {
   projectId: string;
   projectName: string;
+  /** The project's output framework (W5). */
+  framework: ProjectFramework;
   /** Latest complete generation's files; empty on a fresh project. */
   files: GeneratedFile[];
   /** Reconstructed raw buffer (FILE-marker join); empty on fresh. */
@@ -64,8 +70,15 @@ export interface PersistGenerationInput {
  * semantically identical context after a reload. Single-file
  * projects reload as bare content (markers optional per the format).
  */
-function joinFiles(files: GeneratedFile[]): string {
+function joinFiles(
+  files: GeneratedFile[],
+  framework: ProjectFramework,
+): string {
   if (files.length === 0) return "";
+  if (framework === "react-vite") {
+    // AIWP marker format — what the React modify prompt expects (W5).
+    return serializeProjectFiles(files);
+  }
   if (files.length === 1) return files[0].content;
   return files
     .map((f) => `<!-- FILE: ${f.name} -->\n${f.content}`)
@@ -90,7 +103,7 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
   // Fetch-or-create the implicit V1 project (newest non-archived).
   const { data: existing, error: projectError } = await supabase
     .from("projects")
-    .select("id, name")
+    .select("id, name, framework")
     .eq("archived", false)
     .order("updated_at", { ascending: false })
     .limit(1);
@@ -100,13 +113,21 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
 
   let projectId: string;
   let projectName: string;
+  let framework: ProjectFramework;
   if (existing !== null && existing.length > 0) {
     projectId = existing[0].id as string;
     projectName = existing[0].name as string;
+    framework =
+      existing[0].framework === "react-vite" ? "react-vite" : "html";
   } else {
+    // New projects default to React + Vite (Section 5 §3) since W5.
     const { data: created, error: createError } = await supabase
       .from("projects")
-      .insert({ user_id: user.id, name: "My First Website", framework: "html" })
+      .insert({
+        user_id: user.id,
+        name: "My First Website",
+        framework: "react-vite",
+      })
       .select("id, name")
       .single();
     if (createError !== null) {
@@ -114,6 +135,7 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
     }
     projectId = created.id as string;
     projectName = created.name as string;
+    framework = "react-vite";
   }
 
   // Latest complete generation, if any.
@@ -164,11 +186,39 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
   return {
     projectId,
     projectName,
+    framework,
     files,
-    generatedCode: joinFiles(files),
+    generatedCode: joinFiles(files, framework),
     chatHistory,
     latestGenerationId,
   };
+}
+
+/**
+ * Update the active project's output framework (W5 Thu toggle). The
+ * next generation uses the new mode; existing snapshots are untouched.
+ */
+export async function setProjectFramework(
+  projectId: string,
+  framework: ProjectFramework,
+): Promise<void> {
+  if (framework !== "react-vite" && framework !== "html") {
+    throw new Error(`Unknown framework: ${String(framework)}`);
+  }
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("setProjectFramework requires a signed-in user.");
+  }
+  const { error } = await supabase
+    .from("projects")
+    .update({ framework })
+    .eq("id", projectId);
+  if (error !== null) {
+    throw new Error(`Failed to update framework: ${error.message}`);
+  }
 }
 
 /**

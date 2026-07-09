@@ -38,8 +38,15 @@ import { DeployModal } from "@/components/modals/DeployModal";
 import { GithubPanel } from "@/components/modals/GithubPanel";
 import { effectiveTemperature } from "@/lib/utils/sampling";
 import { parseGeneratedFiles } from "@/lib/generation/parser";
+import {
+  parseProjectFiles,
+  serializeProjectFiles,
+} from "@/lib/generation/project-parser";
+import type { GeneratedFile } from "@/lib/generation/types";
 import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
+import { buildReactSystemPrompt } from "@/lib/prompts/react-system-prompt";
+import { buildReactModifyPrompt } from "@/lib/prompts/react-modify-prompt";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import {
@@ -70,6 +77,9 @@ function Builder() {
   const setIsGenerating = useGenerationStore((s) => s.setIsGenerating);
   const setCodeHistory = useGenerationStore((s) => s.setCodeHistory);
   const setGenerationStats = useGenerationStore((s) => s.setGenerationStats);
+  const framework = useGenerationStore((s) => s.framework);
+  const setFramework = useGenerationStore((s) => s.setFramework);
+  const setProjectId = useGenerationStore((s) => s.setProjectId);
 
   // Chat Store — display state lives in MessageList/MessageInput
   // (PR-4); the values here feed the two generation handlers.
@@ -149,6 +159,8 @@ function Builder() {
       .then((workspace) => {
         projectIdRef.current = workspace.projectId;
         latestGenerationIdRef.current = workspace.latestGenerationId;
+        setProjectId(workspace.projectId);
+        setFramework(workspace.framework);
         if (workspace.files.length > 0) {
           setGeneratedFiles(workspace.files);
           setGeneratedCode(workspace.generatedCode);
@@ -232,7 +244,12 @@ function Builder() {
     setCodeHistory([]);
     setGenerationStats(null);
 
-    const systemPrompt = buildSystemPrompt();
+    // Framework fork (W5): React/Vite projects use the marker-format
+    // prompt + structured parser; 'html' keeps the legacy path intact.
+    const isReact = framework === "react-vite";
+    const systemPrompt = isReact
+      ? buildReactSystemPrompt()
+      : buildSystemPrompt();
 
     // Resolve the effective OpenRouter model. The CUSTOM_MODEL_ID sentinel
     // means the user picked "Custom…" in the dropdown and typed their own slug.
@@ -277,7 +294,15 @@ function Builder() {
         onDone: (fullText) => {
           setGeneratedCode(fullText);
           const cleanedCode = fullText.trim();
-          const files = parseGeneratedFiles(cleanedCode);
+          // Structured parse for React projects; if the model ignored
+          // the marker format entirely, rescue via the legacy parser
+          // rather than presenting an empty result.
+          let files: GeneratedFile[] = isReact
+            ? parseProjectFiles(cleanedCode)
+            : parseGeneratedFiles(cleanedCode);
+          if (isReact && files.length === 0) {
+            files = parseGeneratedFiles(cleanedCode);
+          }
           setGeneratedFiles(files);
           if (files.length > 0) {
             setSelectedFile(files[0]);
@@ -340,6 +365,7 @@ function Builder() {
     }
   }, [
     prompt,
+    framework,
     numCtx,
     temperature,
     topP,
@@ -380,10 +406,16 @@ function Builder() {
     setChatMessage("");
     setIsGenerating(true);
 
-    const modifyPrompt = buildModifyPrompt({
-      generatedCode,
-      chatMessage,
-    });
+    const isReact = framework === "react-vite";
+    const modifyPrompt = isReact
+      ? buildReactModifyPrompt({
+          serializedProject: serializeProjectFiles(generatedFiles),
+          chatMessage,
+        })
+      : buildModifyPrompt({
+          generatedCode,
+          chatMessage,
+        });
 
     // Resolve the effective OpenRouter model. Same rule as handleGenerate.
     const effectiveOrModel =
@@ -424,7 +456,12 @@ function Builder() {
         onDone: (fullText) => {
           setGeneratedCode(fullText);
           const cleanedCode = fullText.trim();
-          const files = parseGeneratedFiles(cleanedCode);
+          let files: GeneratedFile[] = isReact
+            ? parseProjectFiles(cleanedCode)
+            : parseGeneratedFiles(cleanedCode);
+          if (isReact && files.length === 0) {
+            files = parseGeneratedFiles(cleanedCode);
+          }
           setGeneratedFiles(files);
           if (selectedFile) {
             const updatedFile = files.find((f) => f.name === selectedFile.name);
@@ -492,6 +529,7 @@ function Builder() {
     chatMessage,
     generatedCode,
     generatedFiles,
+    framework,
     numCtx,
     temperature,
     topP,

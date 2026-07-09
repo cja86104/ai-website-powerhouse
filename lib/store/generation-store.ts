@@ -17,6 +17,9 @@
 import { create } from "zustand";
 import type { GeneratedFile } from "@/lib/generation/types";
 
+/** Output framework for the active project (mirrors projects.framework). */
+export type ProjectFramework = "react-vite" | "html";
+
 /** Snapshot used by the undo stack. */
 export interface CodeHistoryEntry {
   files: GeneratedFile[];
@@ -40,6 +43,14 @@ export interface GenerationStats {
 }
 
 export interface GenerationState {
+  /** Active project id, set by the workspace load (W5). */
+  projectId: string | null;
+  setProjectId: (value: string | null) => void;
+
+  /** Active project's output framework (W5). */
+  framework: ProjectFramework;
+  setFramework: (value: ProjectFramework) => void;
+
   prompt: string;
   setPrompt: (value: string) => void;
 
@@ -65,6 +76,12 @@ export interface GenerationState {
 }
 
 export const useGenerationStore = create<GenerationState>()((set) => ({
+  projectId: null,
+  setProjectId: (value) => set({ projectId: value }),
+
+  framework: "react-vite",
+  setFramework: (value) => set({ framework: value }),
+
   prompt: "",
   setPrompt: (value) => set({ prompt: value }),
 

@@ -22,6 +22,7 @@
 import { memo, useCallback, useMemo, useRef } from "react";
 import { Download, Eye } from "lucide-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
+// framework gating (W5): React projects render as code until Sandpack (W6).
 import { useUiStore } from "@/lib/store/ui-store";
 import { downloadFile } from "@/lib/utils/download";
 import type { PreviewMode } from "@/lib/store/ui-store";
@@ -36,15 +37,19 @@ function nextPreviewMode(current: PreviewMode): PreviewMode {
 export const PreviewPanel = memo(function PreviewPanel() {
   const selectedFile = useGenerationStore((s) => s.selectedFile);
   const generatedFiles = useGenerationStore((s) => s.generatedFiles);
+  const framework = useGenerationStore((s) => s.framework);
   const previewMode = useUiStore((s) => s.previewMode);
   const setPreviewMode = useUiStore((s) => s.setPreviewMode);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const shouldShowLivePreview = useCallback((): boolean => {
+    // React projects need a bundler to render — the srcdoc iframe
+    // would show a blank Vite shell. Sandpack live preview lands in W6.
+    if (framework === "react-vite") return false;
     if (previewMode === "code") return false;
     if (previewMode === "live") return true;
     return selectedFile?.name.endsWith(".html") ?? false;
-  }, [previewMode, selectedFile]);
+  }, [framework, previewMode, selectedFile]);
 
   const getCombinedPreviewContent = useCallback((): string => {
     const htmlFile = generatedFiles.find((f) => f.name.endsWith(".html"));
@@ -119,6 +124,11 @@ export const PreviewPanel = memo(function PreviewPanel() {
           <Eye className="w-6 h-6" />
           Preview
         </h2>
+        {selectedFile && framework === "react-vite" && (
+          <span className="text-xs text-green-300/50">
+            Live preview for React projects arrives with Sandpack
+          </span>
+        )}
         {selectedFile && (
           <div className="flex gap-2">
             <button

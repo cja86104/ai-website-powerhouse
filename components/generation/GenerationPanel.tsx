@@ -14,8 +14,13 @@
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-3.
  */
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { useUiStore } from "@/lib/store/ui-store";
+import {
+  useGenerationStore,
+  type ProjectFramework,
+} from "@/lib/store/generation-store";
+import { setProjectFramework } from "@/lib/projects/actions";
 import { PromptForm } from "@/components/generation/PromptForm";
 import { TemplatePicker } from "@/components/generation/TemplatePicker";
 
@@ -29,6 +34,24 @@ export const GenerationPanel = memo(function GenerationPanel({
 }: GenerationPanelProps) {
   const showTemplates = useUiStore((s) => s.showTemplates);
   const setShowTemplates = useUiStore((s) => s.setShowTemplates);
+  const framework = useGenerationStore((s) => s.framework);
+  const setFramework = useGenerationStore((s) => s.setFramework);
+  const projectId = useGenerationStore((s) => s.projectId);
+
+  // Framework toggle (W5 Thu): flips the store immediately for the
+  // next generation and persists to projects.framework fire-and-forget.
+  const handleFrameworkChange = useCallback(
+    (next: ProjectFramework) => {
+      if (next === framework) return;
+      setFramework(next);
+      if (projectId !== null) {
+        setProjectFramework(projectId, next).catch((error: unknown) => {
+          console.error("Failed to persist framework choice:", error);
+        });
+      }
+    },
+    [framework, setFramework, projectId],
+  );
 
   return (
     <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-orange-500/30 shadow-2xl p-6">
@@ -43,6 +66,30 @@ export const GenerationPanel = memo(function GenerationPanel({
       </div>
 
       {showTemplates && <TemplatePicker />}
+
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-sm text-orange-200/70">Output:</span>
+        <button
+          onClick={() => handleFrameworkChange("react-vite")}
+          className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+            framework === "react-vite"
+              ? "bg-orange-500/40 text-orange-100"
+              : "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+          }`}
+        >
+          React + Vite
+        </button>
+        <button
+          onClick={() => handleFrameworkChange("html")}
+          className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+            framework === "html"
+              ? "bg-orange-500/40 text-orange-100"
+              : "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+          }`}
+        >
+          Classic HTML
+        </button>
+      </div>
 
       <PromptForm onGenerate={onGenerate} />
     </div>
