@@ -6,11 +6,44 @@
  * fresh on every request. See that module for the no-gating decision.
  */
 
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { gateHostedGeneration } from "@/lib/billing/gate";
+import { allowRequest, clientIp } from "@/lib/ratelimit/limiter";
+
+/** Form-post paths covered by the auth rate limiter (W4). */
+const AUTH_LIMITED_PATHS = new Set([
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
+  "/reset-password",
+]);
 
 export async function proxy(request: NextRequest) {
+  // Rate limits run first — cheaper than session work, and abusive
+  // traffic should never reach auth or billing code (W4, ADR-009).
+  if (request.method === "POST") {
+    const ip = clientIp(request.headers);
+    if (AUTH_LIMITED_PATHS.has(request.nextUrl.pathname)) {
+      const allowed = await allowRequest("auth", ip);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "Too many attempts. Wait a few minutes and try again." },
+          { status: 429 },
+        );
+      }
+    }
+    if (request.nextUrl.pathname === "/api/openrouter") {
+      const allowed = await allowRequest("generation", ip);
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "Too many generation requests. Wait a few minutes and try again." },
+          { status: 429 },
+        );
+      }
+    }
+  }
+
   const response = await updateSession(request);
 
   // Subscription gate for the hosted-key generation path (W3 Thu).

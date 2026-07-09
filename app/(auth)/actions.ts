@@ -16,6 +16,8 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { isDisposableEmail } from "@/lib/auth/disposable-domains";
+import { verifyTurnstileToken } from "@/lib/auth/turnstile";
 
 /** Extract and minimally validate credentials from a form post. */
 function credentialsFrom(formData: FormData): {
@@ -44,9 +46,32 @@ export async function signUp(formData: FormData): Promise<void> {
     );
   }
 
-  const supabase = await createClient();
+  if (isDisposableEmail(credentials.email)) {
+    redirect(
+      `/sign-up?error=${encodeURIComponent(
+        "Disposable email addresses are not supported. Use a permanent address.",
+      )}`,
+    );
+  }
+
   const headerList = await headers();
   const origin = headerList.get("origin") ?? "http://localhost:4000";
+
+  // Turnstile (W4): no-op unless configured via env.
+  const turnstileToken = formData.get("cf-turnstile-response");
+  const humanVerified = await verifyTurnstileToken(
+    typeof turnstileToken === "string" ? turnstileToken : null,
+    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  );
+  if (!humanVerified) {
+    redirect(
+      `/sign-up?error=${encodeURIComponent(
+        "Verification challenge failed. Refresh the page and try again.",
+      )}`,
+    );
+  }
+
+  const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signUp({
     email: credentials.email,

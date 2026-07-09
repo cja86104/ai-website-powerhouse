@@ -8,6 +8,7 @@
  */
 
 import Link from "next/link";
+import Script from "next/script";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signUp } from "@/app/(auth)/actions";
@@ -26,6 +27,7 @@ export default async function SignUpPage({
   }
 
   const { error } = await searchParams;
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#2d1b3d] to-[#4a1942] flex items-center justify-center p-4">
@@ -80,6 +82,19 @@ export default async function SignUpPage({
               Minimum 6 characters (Supabase project default).
             </p>
           </div>
+          {turnstileSiteKey !== undefined && turnstileSiteKey.length > 0 && (
+            <>
+              <div
+                className="cf-turnstile"
+                data-sitekey={turnstileSiteKey}
+                data-theme="dark"
+              />
+              <Script
+                src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                strategy="afterInteractive"
+              />
+            </>
+          )}
           <button
             type="submit"
             className="w-full py-3 px-6 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
