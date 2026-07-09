@@ -11,7 +11,8 @@
  *    call sites (call signatures preserved verbatim per Section 6 §5).
  *  - The mount-time bootstrap effect (Ollama connectivity probe,
  *    OpenRouter server-key probe, autosave restore prompt).
- *  - The debounced autosave effect.
+ *  - The workspace load (DB-backed since W2 Fri) and per-round
+ *    persistence via lib/projects/actions.
  *  - The global keyboard shortcuts (Ctrl/Cmd+Enter, +S, +Z) that drive
  *    the `data-shortcut` buttons rendered by the subcomponents.
  *
@@ -22,7 +23,7 @@
  * default-values flicker called out in Section 6 §3 PR-2.
  */
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { CUSTOM_MODEL_ID, DEFAULT_OLLAMA_MODEL_ID } from "@/lib/models";
 import { generateStream } from "@/lib/llm";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -34,12 +35,9 @@ import { FileBrowser } from "@/components/files/FileBrowser";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { DeployModal } from "@/components/modals/DeployModal";
-import { RestoreWorkModal } from "@/components/modals/RestoreWorkModal";
 import { GithubPanel } from "@/components/modals/GithubPanel";
-import { debounce } from "@/lib/utils/debounce";
 import { effectiveTemperature } from "@/lib/utils/sampling";
 import { parseGeneratedFiles } from "@/lib/generation/parser";
-import type { GeneratedFile } from "@/lib/generation/types";
 import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
 import { useSettingsStore } from "@/lib/store/settings-store";
@@ -49,7 +47,10 @@ import {
   type ChatMessage as ChatThreadMessage,
 } from "@/lib/store/chat-store";
 import { useUiStore } from "@/lib/store/ui-store";
-import { saveSnapshot, hasSnapshot } from "@/lib/store/autosave";
+import {
+  loadWorkspace,
+  persistGeneration,
+} from "@/lib/projects/actions";
 
 /** Throttle interval (ms) for streaming UI updates during generation. */
 const UPDATE_INTERVAL = 150;
@@ -71,17 +72,13 @@ function Builder() {
   const setGenerationStats = useGenerationStore((s) => s.setGenerationStats);
 
   // Chat Store — display state lives in MessageList/MessageInput
-  // (PR-4); the values here feed the autosave effect and the two
-  // generation handlers.
-  const chatHistory = useChatStore((s) => s.chatHistory);
+  // (PR-4); the values here feed the two generation handlers.
   const setChatHistory = useChatStore((s) => s.setChatHistory);
   const chatMessage = useChatStore((s) => s.chatMessage);
   const setChatMessage = useChatStore((s) => s.setChatMessage);
 
   // UI Store — every modal/panel owns its own visibility selector now;
-  // Builder only triggers the restore prompt and records the
-  // OpenRouter probe result.
-  const setShowRestoreModal = useUiStore((s) => s.setShowRestoreModal);
+  // Builder only records the OpenRouter probe result.
   const setOpenrouterServerAvailable = useUiStore(
     (s) => s.setOpenrouterServerAvailable,
   );
@@ -98,6 +95,11 @@ function Builder() {
   const temperature = useSettingsStore((s) => s.temperature);
   const topP = useSettingsStore((s) => s.topP);
   const topK = useSettingsStore((s) => s.topK);
+
+  // Workspace identity (W2 Fri). Refs, not state: the generation
+  // callbacks read them without needing re-renders or dep churn.
+  const projectIdRef = useRef<string | null>(null);
+  const latestGenerationIdRef = useRef<string | null>(null);
 
   // Integrations Store — no selectors needed here since PR-5: the
   // Supabase trio left with the prompt-builder dead-branch cleanup and
@@ -126,7 +128,8 @@ function Builder() {
   //     network ping the legacy code did so server-side issues surface
   //     in DevTools).
   //  2. Probe the /api/openrouter availability endpoint.
-  //  3. Surface the RestoreWorkModal if an autosave snapshot exists.
+  //  3. Load the user's workspace from the database (W2 Fri) —
+  //     project identity, latest files, and the chat thread.
   //
   // The intentionally empty dep array runs this once per mount. We
   // intentionally do NOT depend on `ollamaUrl` — re-running this on
@@ -142,34 +145,33 @@ function Builder() {
       )
       .catch(() => setOpenrouterServerAvailable(false));
 
-    if (hasSnapshot()) {
-      setShowRestoreModal(true);
-    }
+    loadWorkspace()
+      .then((workspace) => {
+        projectIdRef.current = workspace.projectId;
+        latestGenerationIdRef.current = workspace.latestGenerationId;
+        if (workspace.files.length > 0) {
+          setGeneratedFiles(workspace.files);
+          setGeneratedCode(workspace.generatedCode);
+          setSelectedFile(workspace.files[0]);
+        }
+        if (workspace.chatHistory.length > 0) {
+          setChatHistory(workspace.chatHistory);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Workspace load failed:", error);
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Could not load your saved work: ${
+              error instanceof Error ? error.message : String(error)
+            }. Reload the page to retry.`,
+          },
+        ]);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchAvailableModels]);
-
-  // Auto-save with debounce
-  const saveToHistory = useMemo(
-    () =>
-      debounce(
-        (
-          files: GeneratedFile[],
-          code: string,
-          chat: ChatThreadMessage[],
-        ) => {
-          saveSnapshot(files, code, chat);
-        },
-        2000,
-      ),
-    [],
-  );
-
-  // Save work whenever it changes
-  useEffect(() => {
-    if (generatedFiles.length > 0) {
-      saveToHistory(generatedFiles, generatedCode, chatHistory);
-    }
-  }, [generatedFiles, generatedCode, chatHistory, saveToHistory]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -279,6 +281,41 @@ function Builder() {
           setGeneratedFiles(files);
           if (files.length > 0) {
             setSelectedFile(files[0]);
+          }
+
+          // Persist the completed round (W2 Fri). Fire-and-forget:
+          // a save failure must never destroy the in-memory result.
+          if (projectIdRef.current !== null && files.length > 0) {
+            persistGeneration({
+              projectId: projectIdRef.current,
+              kind: "initial",
+              prompt,
+              provider: aiProvider,
+              model:
+                aiProvider === "ollama"
+                  ? DEFAULT_OLLAMA_MODEL_ID
+                  : effectiveOrModel,
+              usedByoKey:
+                aiProvider === "openrouter" && openrouterKey.trim().length > 0,
+              parentGenerationId: null,
+              files,
+              newMessages: [],
+            })
+              .then((generationId) => {
+                latestGenerationIdRef.current = generationId;
+              })
+              .catch((error: unknown) => {
+                console.error("Persist failed:", error);
+                setChatHistory((prev) => [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: `Heads up: this result could not be saved to your account (${
+                      error instanceof Error ? error.message : String(error)
+                    }). It is still on screen — your next successful save will include it.`,
+                  },
+                ]);
+              });
           }
         },
         onError: (err) => {
@@ -398,6 +435,40 @@ function Builder() {
             content: "Website updated successfully!",
           };
           setChatHistory((prev) => [...prev, assistantMessage]);
+
+          // Persist the completed modify round (W2 Fri).
+          if (projectIdRef.current !== null && files.length > 0) {
+            persistGeneration({
+              projectId: projectIdRef.current,
+              kind: "modify",
+              prompt: userMessage.content,
+              provider: aiProvider,
+              model:
+                aiProvider === "ollama"
+                  ? DEFAULT_OLLAMA_MODEL_ID
+                  : effectiveOrModel,
+              usedByoKey:
+                aiProvider === "openrouter" && openrouterKey.trim().length > 0,
+              parentGenerationId: latestGenerationIdRef.current,
+              files,
+              newMessages: [userMessage, assistantMessage],
+            })
+              .then((generationId) => {
+                latestGenerationIdRef.current = generationId;
+              })
+              .catch((error: unknown) => {
+                console.error("Persist failed:", error);
+                setChatHistory((prev) => [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: `Heads up: this update could not be saved to your account (${
+                      error instanceof Error ? error.message : String(error)
+                    }). It is still on screen — your next successful save will include it.`,
+                  },
+                ]);
+              });
+          }
         },
         onError: (err) => {
           capturedError = err;
@@ -443,8 +514,6 @@ function Builder() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#2d1b3d] to-[#4a1942] text-gray-900">
-      <RestoreWorkModal />
-
       <DeployModal />
 
       <Header />

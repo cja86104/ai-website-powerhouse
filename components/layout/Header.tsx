@@ -9,12 +9,14 @@
  * panel-visibility flags from the UI store. No props.
  *
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-3.
+ * Account link added in W2 Fri (auth-gated app needs a sign-out path).
  * The `AI Website Powerhouse` string literal is left in place —
  * product rename (if any) lands in W11 marketing work per Section 8.
  */
 
 import { memo } from "react";
-import { Github, Settings } from "lucide-react";
+import Link from "next/link";
+import { Github, Settings, User } from "lucide-react";
 import { useIntegrationsStore } from "@/lib/store/integrations-store";
 import { useUiStore } from "@/lib/store/ui-store";
 import { ChipRow } from "@/components/layout/ChipRow";
@@ -51,6 +53,13 @@ export const Header = memo(function Header() {
           >
             <Settings className="w-6 h-6 text-orange-300" />
           </button>
+          <Link
+            href="/account"
+            className="p-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 transition-colors"
+            title="Account"
+          >
+            <User className="w-6 h-6 text-orange-300" />
+          </Link>
         </div>
       </div>
     </header>

@@ -1,29 +1,44 @@
 /**
- * AI Website Powerhouse — session-refresh middleware helper.
+ * AI Website Powerhouse — session-refresh + auth-gate middleware helper.
  *
  * Called from the root `middleware.ts` on every matched request.
  * Recreates the Supabase client against the request/response cookie
  * pair and calls `auth.getUser()`, which transparently refreshes an
  * expired access token and re-sets the session cookies on the
- * response. Without this, server components would see stale sessions
- * after the access token's one-hour lifetime.
+ * response.
+ *
+ * W2 Fri gating: unauthenticated visitors are redirected to /sign-in
+ * for everything except the public auth surface below. This landed
+ * together with DB-backed projects — the builder now requires a user
+ * context to load and persist work.
  *
  * IMPORTANT (per Supabase SSR docs): do not run logic between
  * `createServerClient` and `auth.getUser()`, and always return the
  * `supabaseResponse` object (or copy its cookies onto any response
  * you construct instead) — otherwise sessions randomly terminate.
- *
- * Route gating decision (W2 Wed): this helper refreshes sessions but
- * does NOT redirect unauthenticated visitors. `/` remains public
- * until W2 Fri lands DB-backed projects, when the builder gains an
- * authenticated context. Gating belongs there, not here.
  */
 
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
-/** Refresh the auth session for this request; returns the response to send. */
+/** Paths reachable without a session (auth surface only). */
+const PUBLIC_PATH_PREFIXES = [
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
+  "/reset-password",
+  "/auth/callback",
+  "/auth/signout",
+] as const;
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/** Refresh the auth session; redirect signed-out visitors off private routes. */
 export async function updateSession(
   request: NextRequest,
 ): Promise<NextResponse> {
@@ -47,9 +62,22 @@ export async function updateSession(
     },
   });
 
-  // Refreshes the token if expired. The result is intentionally not
-  // used for gating here — see the module docblock.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user === null && !isPublicPath(request.nextUrl.pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/sign-in";
+    redirectUrl.search = "";
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    // Carry over any refreshed session cookies so we do not drop a
+    // token refresh that happened during this request.
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
+  }
 
   return supabaseResponse;
 }

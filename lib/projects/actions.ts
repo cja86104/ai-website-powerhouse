@@ -1,0 +1,266 @@
+"use server";
+
+/**
+ * AI Website Powerhouse — workspace persistence server actions (W2 Fri).
+ *
+ * Replaces the localStorage autosave/restore flow. Work is persisted
+ * at each COMPLETED generation as real relational rows:
+ *
+ *   generations      one row per generate/modify round
+ *   project_files    immutable per-generation file snapshots
+ *   messages         the chat thread, linked to its generation
+ *
+ * All reads/writes go through the user's RLS-scoped server client —
+ * the service-role key is never involved here. The W5 pipeline
+ * (React/Vite trees, token counts, cost) extends these same tables;
+ * nothing here is throwaway.
+ *
+ * V1 project model: one implicit project per user, created on first
+ * load ("My First Website"). The multi-project dashboard arrives in
+ * W7 per the sprint plan.
+ */
+
+import { createHash } from "node:crypto";
+import { createClient } from "@/lib/supabase/server";
+import type { GeneratedFile } from "@/lib/generation/types";
+
+/** Chat message shape shared with the client stores. */
+export interface WorkspaceMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Everything the builder needs to resume where the user left off. */
+export interface WorkspacePayload {
+  projectId: string;
+  projectName: string;
+  /** Latest complete generation's files; empty on a fresh project. */
+  files: GeneratedFile[];
+  /** Reconstructed raw buffer (FILE-marker join); empty on fresh. */
+  generatedCode: string;
+  /** Persisted chat thread, oldest first. */
+  chatHistory: WorkspaceMessage[];
+  /** Latest complete generation id (parent for the next modify). */
+  latestGenerationId: string | null;
+}
+
+/** Inputs persisted after a completed generation round. */
+export interface PersistGenerationInput {
+  projectId: string;
+  kind: "initial" | "modify";
+  prompt: string;
+  provider: "ollama" | "openrouter";
+  model: string;
+  usedByoKey: boolean;
+  parentGenerationId: string | null;
+  files: GeneratedFile[];
+  /** Chat messages added THIS round (not the whole thread). */
+  newMessages: WorkspaceMessage[];
+}
+
+/**
+ * Rebuild a raw text buffer from parsed files using the same
+ * FILE-marker format the models emit, so the modify prompt sees
+ * semantically identical context after a reload. Single-file
+ * projects reload as bare content (markers optional per the format).
+ */
+function joinFiles(files: GeneratedFile[]): string {
+  if (files.length === 0) return "";
+  if (files.length === 1) return files[0].content;
+  return files
+    .map((f) => `<!-- FILE: ${f.name} -->\n${f.content}`)
+    .join("\n\n");
+}
+
+/**
+ * Load (and on first visit, create) the user's workspace: their
+ * project, the latest complete generation's files, and the chat
+ * thread. Throws when called without a session — the middleware
+ * gate makes that unreachable in normal flows.
+ */
+export async function loadWorkspace(): Promise<WorkspacePayload> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("loadWorkspace requires a signed-in user.");
+  }
+
+  // Fetch-or-create the implicit V1 project (newest non-archived).
+  const { data: existing, error: projectError } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("archived", false)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (projectError !== null) {
+    throw new Error(`Failed to load project: ${projectError.message}`);
+  }
+
+  let projectId: string;
+  let projectName: string;
+  if (existing !== null && existing.length > 0) {
+    projectId = existing[0].id as string;
+    projectName = existing[0].name as string;
+  } else {
+    const { data: created, error: createError } = await supabase
+      .from("projects")
+      .insert({ user_id: user.id, name: "My First Website", framework: "html" })
+      .select("id, name")
+      .single();
+    if (createError !== null) {
+      throw new Error(`Failed to create project: ${createError.message}`);
+    }
+    projectId = created.id as string;
+    projectName = created.name as string;
+  }
+
+  // Latest complete generation, if any.
+  const { data: generations, error: genError } = await supabase
+    .from("generations")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("status", "complete")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (genError !== null) {
+    throw new Error(`Failed to load generations: ${genError.message}`);
+  }
+
+  let files: GeneratedFile[] = [];
+  let latestGenerationId: string | null = null;
+  if (generations !== null && generations.length > 0) {
+    latestGenerationId = generations[0].id as string;
+    const { data: fileRows, error: filesError } = await supabase
+      .from("project_files")
+      .select("path, content")
+      .eq("generation_id", latestGenerationId)
+      .order("created_at", { ascending: true });
+    if (filesError !== null) {
+      throw new Error(`Failed to load files: ${filesError.message}`);
+    }
+    files = (fileRows ?? []).map((row) => ({
+      name: row.path as string,
+      content: row.content as string,
+    }));
+  }
+
+  const { data: messageRows, error: messagesError } = await supabase
+    .from("messages")
+    .select("role, content")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true });
+  if (messagesError !== null) {
+    throw new Error(`Failed to load messages: ${messagesError.message}`);
+  }
+  const chatHistory: WorkspaceMessage[] = (messageRows ?? [])
+    .filter((row) => row.role === "user" || row.role === "assistant")
+    .map((row) => ({
+      role: row.role as "user" | "assistant",
+      content: row.content as string,
+    }));
+
+  return {
+    projectId,
+    projectName,
+    files,
+    generatedCode: joinFiles(files),
+    chatHistory,
+    latestGenerationId,
+  };
+}
+
+/**
+ * Persist one completed generation round: the generations row, a
+ * project_files snapshot, and any chat messages from this round.
+ * Returns the new generation id (the parent for the next modify).
+ *
+ * Failure surfaces as a thrown Error — the builder shows it in the
+ * chat thread but keeps the in-memory work intact, so a transient
+ * network problem never destroys the user's result.
+ */
+export async function persistGeneration(
+  input: PersistGenerationInput,
+): Promise<string> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("persistGeneration requires a signed-in user.");
+  }
+  if (input.files.length === 0) {
+    throw new Error("persistGeneration requires at least one file.");
+  }
+  if (input.prompt.length === 0) {
+    throw new Error("persistGeneration requires the round's prompt.");
+  }
+
+  // A fresh initial generation starts a new site: clear the previous
+  // chat thread so the persisted state matches what the user sees
+  // (handleGenerate resets the on-screen thread the same way).
+  if (input.kind === "initial") {
+    const { error: clearError } = await supabase
+      .from("messages")
+      .delete()
+      .eq("project_id", input.projectId);
+    if (clearError !== null) {
+      throw new Error(`Failed to reset chat thread: ${clearError.message}`);
+    }
+  }
+
+  const { data: generation, error: genError } = await supabase
+    .from("generations")
+    .insert({
+      project_id: input.projectId,
+      user_id: user.id,
+      parent_generation_id: input.parentGenerationId,
+      kind: input.kind,
+      prompt: input.prompt,
+      provider: input.provider,
+      model: input.model,
+      used_byo_key: input.usedByoKey,
+      status: "complete",
+      completed_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (genError !== null) {
+    throw new Error(`Failed to record generation: ${genError.message}`);
+  }
+  const generationId = generation.id as string;
+
+  const fileRows = input.files.map((file) => ({
+    project_id: input.projectId,
+    generation_id: generationId,
+    path: file.name,
+    content: file.content,
+    content_sha256: createHash("sha256").update(file.content).digest("hex"),
+    size_bytes: Buffer.byteLength(file.content, "utf8"),
+  }));
+  const { error: filesError } = await supabase
+    .from("project_files")
+    .insert(fileRows);
+  if (filesError !== null) {
+    throw new Error(`Failed to store files: ${filesError.message}`);
+  }
+
+  if (input.newMessages.length > 0) {
+    const messageRows = input.newMessages.map((message) => ({
+      project_id: input.projectId,
+      user_id: user.id,
+      role: message.role,
+      content: message.content,
+      generation_id: generationId,
+    }));
+    const { error: messagesError } = await supabase
+      .from("messages")
+      .insert(messageRows);
+    if (messagesError !== null) {
+      throw new Error(`Failed to store messages: ${messagesError.message}`);
+    }
+  }
+
+  return generationId;
+}
