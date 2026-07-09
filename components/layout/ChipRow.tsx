@@ -22,6 +22,7 @@ import { Cloud, Database, Github } from "lucide-react";
 import { CUSTOM_MODEL_ID, DEFAULT_OLLAMA_MODEL_ID } from "@/lib/models";
 import { useIntegrationsStore } from "@/lib/store/integrations-store";
 import { useSettingsStore } from "@/lib/store/settings-store";
+import { useUiStore } from "@/lib/store/ui-store";
 
 export const ChipRow = memo(function ChipRow() {
   const supabaseEnabled = useIntegrationsStore((s) => s.supabaseEnabled);
@@ -31,6 +32,7 @@ export const ChipRow = memo(function ChipRow() {
   const openrouterKey = useSettingsStore((s) => s.openrouterKey);
   const openrouterModel = useSettingsStore((s) => s.openrouterModel);
   const openrouterCustomSlug = useSettingsStore((s) => s.openrouterCustomSlug);
+  const setShowSettings = useUiStore((s) => s.setShowSettings);
 
   const providerTitle =
     aiProvider === "ollama"
@@ -62,17 +64,20 @@ export const ChipRow = memo(function ChipRow() {
           GitHub
         </span>
       )}
-      <span
-        className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${
+      {/* Clickable since W5 UX: the chip was display-only and users
+          had no discoverable path to switch providers. */}
+      <button
+        onClick={() => setShowSettings(true)}
+        className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 cursor-pointer transition-colors ${
           aiProvider === "ollama"
-            ? "bg-orange-500/20 border border-orange-500/30 text-orange-300"
-            : "bg-cyan-500/20 border border-cyan-500/30 text-cyan-300"
+            ? "bg-orange-500/20 border border-orange-500/30 text-orange-300 hover:bg-orange-500/30"
+            : "bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/30"
         }`}
-        title={providerTitle}
+        title={`${providerTitle} — click to change`}
       >
         <Cloud className="w-3 h-3" />
         {providerLabel}
-      </span>
+      </button>
     </>
   );
 });

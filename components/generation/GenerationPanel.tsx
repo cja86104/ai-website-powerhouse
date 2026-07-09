@@ -16,6 +16,7 @@
 
 import { memo, useCallback } from "react";
 import { useUiStore } from "@/lib/store/ui-store";
+import { useSettingsStore } from "@/lib/store/settings-store";
 import {
   useGenerationStore,
   type ProjectFramework,
@@ -37,6 +38,19 @@ export const GenerationPanel = memo(function GenerationPanel({
 }: GenerationPanelProps) {
   const showTemplates = useUiStore((s) => s.showTemplates);
   const setShowTemplates = useUiStore((s) => s.setShowTemplates);
+  const setShowSettings = useUiStore((s) => s.setShowSettings);
+  const aiProvider = useSettingsStore((s) => s.aiProvider);
+  const openrouterKey = useSettingsStore((s) => s.openrouterKey);
+
+  // Plain-words description of where the next generation will run —
+  // the header chip is technical shorthand; this is for people who
+  // don't know what an Ollama is (W5 UX).
+  const providerBlurb =
+    aiProvider === "ollama"
+      ? "Using local AI (Ollama) — requires Ollama running on your computer"
+      : openrouterKey.trim().length > 0
+        ? "Using cloud AI with your own OpenRouter key — unlimited"
+        : "Using free hosted AI (DeepSeek, 3/day) — add your own key or upgrade for more";
   const framework = useGenerationStore((s) => s.framework);
   const setFramework = useGenerationStore((s) => s.setFramework);
   const projectId = useGenerationStore((s) => s.projectId);
@@ -78,6 +92,16 @@ export const GenerationPanel = memo(function GenerationPanel({
       </div>
 
       {showTemplates && <TemplatePicker />}
+
+      <p className="mb-3 text-xs text-orange-200/60">
+        {providerBlurb}{" "}
+        <button
+          onClick={() => setShowSettings(true)}
+          className="text-orange-400 hover:text-orange-300 font-medium underline underline-offset-2"
+        >
+          Change
+        </button>
+      </p>
 
       <div className="flex items-center gap-2 mb-4">
         <span className="text-sm text-orange-200/70">Output:</span>

@@ -17,7 +17,6 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { DEFAULT_OPENROUTER_MODEL_ID } from "@/lib/models";
 
 /** AI provider identifier. Mirrors the discriminator on `Provider` in `lib/llm.ts`. */
 export type AiProvider = "ollama" | "openrouter";
@@ -70,7 +69,13 @@ interface SettingsPersistedSlice {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      aiProvider: "ollama",
+      // Cloud-first default (W5 UX): a brand-new account's first
+      // Generate must work with ZERO setup, and the only zero-setup
+      // path is the hosted key (3 free DeepSeek generations/day).
+      // "ollama" as default meant new users hit "Make sure Ollama is
+      // running!" with no explanation. Existing users keep their
+      // persisted choice.
+      aiProvider: "openrouter",
       setAiProvider: (value) => set({ aiProvider: value }),
 
       ollamaUrl: "http://localhost:11434",
@@ -78,7 +83,11 @@ export const useSettingsStore = create<SettingsState>()(
 
       openrouterKey: "",
       setOpenrouterKey: (value) => set({ openrouterKey: value }),
-      openrouterModel: DEFAULT_OPENROUTER_MODEL_ID,
+      // DeepSeek default (W5 UX): the free tier's hosted quota only
+      // allows deepseek/deepseek-v3.2 (lib/billing/quota.ts), so the
+      // default model must be the one that works before any payment
+      // or key. Slug mirrors the curated entry in lib/models.ts.
+      openrouterModel: "deepseek/deepseek-v3.2",
       setOpenrouterModel: (value) => set({ openrouterModel: value }),
       openrouterCustomSlug: "",
       setOpenrouterCustomSlug: (value) => set({ openrouterCustomSlug: value }),
