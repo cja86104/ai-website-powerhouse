@@ -59,6 +59,7 @@ import {
   persistGeneration,
   startNewProject,
 } from "@/lib/projects/actions";
+import { loadOpenrouterKey } from "@/lib/integrations/actions";
 
 /** Throttle interval (ms) for streaming UI updates during generation. */
 const UPDATE_INTERVAL = 150;
@@ -100,6 +101,7 @@ function Builder() {
   const ollamaUrl = useSettingsStore((s) => s.ollamaUrl);
   const aiProvider = useSettingsStore((s) => s.aiProvider);
   const openrouterKey = useSettingsStore((s) => s.openrouterKey);
+  const setOpenrouterKey = useSettingsStore((s) => s.setOpenrouterKey);
   const openrouterModel = useSettingsStore((s) => s.openrouterModel);
   const openrouterCustomSlug = useSettingsStore((s) => s.openrouterCustomSlug);
   const openrouterMaxTokens = useSettingsStore((s) => s.openrouterMaxTokens);
@@ -156,6 +158,21 @@ function Builder() {
         setOpenrouterServerAvailable(Boolean(data && data.available)),
       )
       .catch(() => setOpenrouterServerAvailable(false));
+
+    // Restore the account-stored BYOK key when this browser has none
+    // (W5 UX). The mount-time closure value is post-hydration thanks
+    // to HydrationGate, so "empty here" means "empty locally".
+    if (openrouterKey.trim().length === 0) {
+      loadOpenrouterKey()
+        .then((storedKey) => {
+          if (storedKey !== null) {
+            setOpenrouterKey(storedKey);
+          }
+        })
+        .catch((error: unknown) => {
+          console.error("Key restore failed:", error);
+        });
+    }
 
     loadWorkspace()
       .then((workspace) => {

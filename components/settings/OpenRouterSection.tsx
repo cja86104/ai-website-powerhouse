@@ -27,6 +27,7 @@ import {
 } from "@/lib/models";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useUiStore } from "@/lib/store/ui-store";
+import { saveOpenrouterKey } from "@/lib/integrations/actions";
 
 export const OpenRouterSection = memo(function OpenRouterSection() {
   const openrouterKey = useSettingsStore((s) => s.openrouterKey);
@@ -45,9 +46,21 @@ export const OpenRouterSection = memo(function OpenRouterSection() {
     (s) => s.openrouterServerAvailable,
   );
 
-  const saveOpenrouterSettings = useCallback(() => {
-    alert("OpenRouter settings saved!");
-  }, []);
+  // Save persists the key to the ACCOUNT (encrypted at rest) so it
+  // follows the user across browsers (W5 UX). Model/token settings
+  // still persist locally on change, as before.
+  const saveOpenrouterSettings = useCallback(async () => {
+    try {
+      await saveOpenrouterKey(openrouterKey);
+      alert("OpenRouter settings saved to your account!");
+    } catch (error) {
+      alert(
+        `Could not save the key to your account: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }, [openrouterKey]);
 
   return (
     <div className="bg-gradient-to-br from-cyan-500/10 to-transparent rounded-xl p-6 border border-cyan-500/20">
