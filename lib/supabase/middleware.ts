@@ -30,6 +30,9 @@ const PUBLIC_PATH_PREFIXES = [
   "/reset-password",
   "/auth/callback",
   "/auth/signout",
+  // Stripe posts webhooks unauthenticated; the route verifies its own
+  // HMAC signature instead of a session (W3).
+  "/api/stripe/webhook",
 ] as const;
 
 function isPublicPath(pathname: string): boolean {

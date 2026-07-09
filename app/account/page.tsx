@@ -12,11 +12,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut, deleteAccount } from "@/app/(auth)/actions";
+import { startCheckout } from "@/app/account/actions";
 
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; upgraded?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -26,7 +27,22 @@ export default async function AccountPage({
     redirect("/sign-in");
   }
 
-  const { error } = await searchParams;
+  const { error, upgraded } = await searchParams;
+
+  // Billing state lives on public.users, written only by the webhook.
+  const { data: profile } = await supabase
+    .from("users")
+    .select("subscription_status, current_period_end")
+    .eq("id", user.id)
+    .single();
+  const subscriptionStatus =
+    (profile?.subscription_status as string | undefined) ?? "free";
+  const periodEnd =
+    profile?.current_period_end !== null &&
+    profile?.current_period_end !== undefined
+      ? new Date(profile.current_period_end as string).toLocaleDateString()
+      : null;
+
   const memberSince =
     user.created_at !== undefined
       ? new Date(user.created_at).toLocaleDateString()
@@ -64,6 +80,51 @@ export default async function AccountPage({
               Sign out
             </button>
           </form>
+        </div>
+
+        <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-cyan-500/30 shadow-2xl p-8 mb-6">
+          <h2 className="text-xl font-bold text-cyan-100 mb-2">Plan</h2>
+
+          {upgraded !== undefined && (
+            <p className="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
+              Payment received — your plan updates within a few seconds once
+              Stripe confirms it. Refresh if you don&apos;t see Pro yet.
+            </p>
+          )}
+
+          <p className="text-cyan-200 mb-1">
+            <span className="text-cyan-300/70">Current plan:</span>{" "}
+            <span className="font-semibold uppercase">{subscriptionStatus}</span>
+          </p>
+          {periodEnd !== null && (
+            <p className="text-cyan-200 mb-4">
+              <span className="text-cyan-300/70">Current period ends:</span>{" "}
+              {periodEnd}
+            </p>
+          )}
+
+          {subscriptionStatus !== "pro" && (
+            <div className="mt-4 flex flex-col sm:flex-row gap-3">
+              <form action={startCheckout}>
+                <input type="hidden" name="plan" value="pro_monthly" />
+                <button
+                  type="submit"
+                  className="w-full py-3 px-6 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
+                  Upgrade to Pro — $19/mo
+                </button>
+              </form>
+              <form action={startCheckout}>
+                <input type="hidden" name="plan" value="pro_annual" />
+                <button
+                  type="submit"
+                  className="w-full py-3 px-6 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg font-semibold transition-colors"
+                >
+                  Pro Annual — $190/yr (save 17%)
+                </button>
+              </form>
+            </div>
+          )}
         </div>
 
         <div className="bg-gradient-to-br from-red-500/10 to-transparent rounded-2xl border border-red-500/30 shadow-2xl p-8">
