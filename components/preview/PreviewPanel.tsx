@@ -13,8 +13,10 @@
  * injection) are lifted verbatim from the legacy main component
  * so preview behavior is byte-identical to today.
  *
- * Sandpack lands in W5-W6 per Section 4 — for now the `srcDoc`
- * iframe fallback is preserved.
+ * Since W6, React/Vite projects render live via Sandpack
+ * (SandpackReactPreview); the legacy `srcDoc` iframe remains the
+ * live path for 'html' projects — the W6 Wed framework-gated
+ * fallback.
  *
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-3.
  */
@@ -22,7 +24,8 @@
 import { memo, useCallback, useMemo, useRef } from "react";
 import { Download, Eye } from "lucide-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
-// framework gating (W5): React projects render as code until Sandpack (W6).
+import { SandpackReactPreview } from "@/components/preview/SandpackReactPreview";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useUiStore } from "@/lib/store/ui-store";
 import { downloadFile } from "@/lib/utils/download";
 import type { PreviewMode } from "@/lib/store/ui-store";
@@ -43,9 +46,9 @@ export const PreviewPanel = memo(function PreviewPanel() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const shouldShowLivePreview = useCallback((): boolean => {
-    // React projects need a bundler to render — the srcdoc iframe
-    // would show a blank Vite shell. Sandpack live preview lands in W6.
-    if (framework === "react-vite") return false;
+    // React projects render via Sandpack (W6) in every mode but
+    // explicit Code view; Auto means Live for them.
+    if (framework === "react-vite") return previewMode !== "code";
     if (previewMode === "code") return false;
     if (previewMode === "live") return true;
     return selectedFile?.name.endsWith(".html") ?? false;
@@ -124,11 +127,6 @@ export const PreviewPanel = memo(function PreviewPanel() {
           <Eye className="w-6 h-6" />
           Preview
         </h2>
-        {selectedFile && framework === "react-vite" && (
-          <span className="text-xs text-green-300/50">
-            Live preview for React projects arrives with Sandpack
-          </span>
-        )}
         {selectedFile && (
           <div className="flex gap-2">
             <button
@@ -150,7 +148,11 @@ export const PreviewPanel = memo(function PreviewPanel() {
 
       {selectedFile ? (
         <div className="flex-1 overflow-hidden rounded-lg border border-green-500/20 min-h-0 max-h-[calc(100vh-350px)]">
-          {previewMode === "live" && shouldShowLivePreview() ? (
+          {framework === "react-vite" && shouldShowLivePreview() ? (
+            <ErrorBoundary>
+              <SandpackReactPreview />
+            </ErrorBoundary>
+          ) : previewMode === "live" && shouldShowLivePreview() ? (
             <iframe
               ref={iframeRef}
               srcDoc={previewContent}
