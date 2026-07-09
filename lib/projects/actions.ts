@@ -195,6 +195,53 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
 }
 
 /**
+ * Start a fresh project (W5 UX follow-up): the current project is
+ * ARCHIVED, not deleted — it disappears from the workspace but keeps
+ * all generations/files/messages, and resurfaces as history when the
+ * W7 multi-project dashboard lands. A new react-vite project becomes
+ * the active workspace.
+ */
+export async function startNewProject(
+  currentProjectId: string | null,
+): Promise<{ projectId: string; projectName: string; framework: ProjectFramework }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("startNewProject requires a signed-in user.");
+  }
+
+  if (currentProjectId !== null) {
+    const { error: archiveError } = await supabase
+      .from("projects")
+      .update({ archived: true })
+      .eq("id", currentProjectId);
+    if (archiveError !== null) {
+      throw new Error(`Failed to archive project: ${archiveError.message}`);
+    }
+  }
+
+  const name = `Website — ${new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`;
+  const { data: created, error: createError } = await supabase
+    .from("projects")
+    .insert({ user_id: user.id, name, framework: "react-vite" })
+    .select("id, name")
+    .single();
+  if (createError !== null) {
+    throw new Error(`Failed to create project: ${createError.message}`);
+  }
+  return {
+    projectId: created.id as string,
+    projectName: created.name as string,
+    framework: "react-vite",
+  };
+}
+
+/**
  * Update the active project's output framework (W5 Thu toggle). The
  * next generation uses the new mode; existing snapshots are untouched.
  */

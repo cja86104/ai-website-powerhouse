@@ -57,6 +57,7 @@ import { useUiStore } from "@/lib/store/ui-store";
 import {
   loadWorkspace,
   persistGeneration,
+  startNewProject,
 } from "@/lib/projects/actions";
 
 /** Throttle interval (ms) for streaming UI updates during generation. */
@@ -68,6 +69,7 @@ function Builder() {
   // stack read side lives in ChatInterface (PR-4); only the
   // functional-update setter is needed here.
   const prompt = useGenerationStore((s) => s.prompt);
+  const setPrompt = useGenerationStore((s) => s.setPrompt);
   const generatedCode = useGenerationStore((s) => s.generatedCode);
   const setGeneratedCode = useGenerationStore((s) => s.setGeneratedCode);
   const generatedFiles = useGenerationStore((s) => s.generatedFiles);
@@ -232,6 +234,50 @@ function Builder() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Start fresh (W5 UX follow-up): archives the current project and
+  // opens a clean workspace. Nothing is destroyed — archived projects
+  // return as history with the W7 dashboard.
+  const handleNewProject = useCallback(async () => {
+    if (
+      !confirm(
+        "Start a new project? Your current work is saved and will reappear when project history ships.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const fresh = await startNewProject(projectIdRef.current);
+      projectIdRef.current = fresh.projectId;
+      latestGenerationIdRef.current = null;
+      setProjectId(fresh.projectId);
+      setFramework(fresh.framework);
+      setPrompt("");
+      setGeneratedCode("");
+      setGeneratedFiles([]);
+      setSelectedFile(null);
+      setChatHistory([]);
+      setCodeHistory([]);
+      setGenerationStats(null);
+    } catch (error) {
+      console.error("New project failed:", error);
+      alert(
+        `Could not start a new project: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }, [
+    setProjectId,
+    setFramework,
+    setPrompt,
+    setGeneratedCode,
+    setGeneratedFiles,
+    setSelectedFile,
+    setChatHistory,
+    setCodeHistory,
+    setGenerationStats,
+  ]);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -564,7 +610,10 @@ function Builder() {
       <div className="max-w-[1800px] mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
           <div className="lg:col-span-4 flex flex-col gap-6">
-            <GenerationPanel onGenerate={handleGenerate} />
+            <GenerationPanel
+              onGenerate={handleGenerate}
+              onNewProject={handleNewProject}
+            />
 
             <ChatInterface onChatSubmit={handleChatModify} />
           </div>

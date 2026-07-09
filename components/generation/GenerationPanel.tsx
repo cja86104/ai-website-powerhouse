@@ -27,10 +27,13 @@ import { TemplatePicker } from "@/components/generation/TemplatePicker";
 export interface GenerationPanelProps {
   /** See PromptForm. */
   onGenerate: () => void;
+  /** Archives the current project and opens a fresh workspace (W5). */
+  onNewProject: () => void;
 }
 
 export const GenerationPanel = memo(function GenerationPanel({
   onGenerate,
+  onNewProject,
 }: GenerationPanelProps) {
   const showTemplates = useUiStore((s) => s.showTemplates);
   const setShowTemplates = useUiStore((s) => s.setShowTemplates);
@@ -57,12 +60,21 @@ export const GenerationPanel = memo(function GenerationPanel({
     <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-orange-500/30 shadow-2xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-orange-100">Generate Website</h2>
-        <button
-          onClick={() => setShowTemplates(!showTemplates)}
-          className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium"
-        >
-          {showTemplates ? "Hide Templates" : "Show Templates"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onNewProject}
+            className="px-4 py-2 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 rounded-lg transition-colors text-sm font-medium"
+            title="Save this project to history and start fresh"
+          >
+            New Project
+          </button>
+          <button
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium"
+          >
+            {showTemplates ? "Hide Templates" : "Show Templates"}
+          </button>
+        </div>
       </div>
 
       {showTemplates && <TemplatePicker />}
