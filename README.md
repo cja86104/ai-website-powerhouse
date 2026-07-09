@@ -1,27 +1,29 @@
 # AI Website Powerhouse
 
-A developer tool for generating React + Vite (and legacy HTML/CSS/JS) websites from natural-language prompts. Pluggable LLM providers — runs against a local [Ollama](https://ollama.com/) server, your own [OpenRouter](https://openrouter.ai/) account, or a host-provided OpenRouter key.
+Generate complete websites from natural-language prompts — with the AI provider **you** choose. Runs against a local [Ollama](https://ollama.com/) server, your own [OpenRouter](https://openrouter.ai/) account (BYOK), or a host-provided key. Your work is saved to your account and survives any browser, any machine.
 
-> **Status: pre-1.0, active development.** The current public build is the single-user version. A multi-tenant SaaS rewrite is in progress; see roadmap below.
+> **Status: pre-1.0, active development.** The multi-tenant SaaS core is now in place: accounts (Supabase Auth), database-backed projects with full generation history, and Stripe subscription billing (test mode). In progress next: React + Vite project-tree output, Sandpack live preview, one-click deploys. Follow commits on `main`.
 
 ---
 
 ## What this is
 
 - **Provider-agnostic LLM streaming.** One internal helper (`lib/llm.ts`) drives both Ollama (NDJSON) and OpenRouter (OpenAI-style SSE) so the UI never has to know which provider produced the bytes.
-- **Three ways to call OpenRouter:**
-  1. Paste your own key in Settings — the browser calls OpenRouter directly (BYOK, your key never leaves your browser).
-  2. No user key, but the host has `OPENROUTER_API_KEY` set — calls go through `/api/openrouter` (server proxy with attribution headers).
-  3. Neither configured — OpenRouter is reported as unavailable; Ollama still works.
-- **Local-first stays local-first.** Ollama mode never makes outbound network calls beyond your Ollama server.
-- **Output formats.** React + Vite project tree (default for new generations) and a legacy single-page HTML/CSS/JS mode (retained for compatibility).
-- **No data collection.** This codebase ships no telemetry. The future SaaS build will add opt-in observability (Sentry, PostHog) gated behind clear disclosure.
+- **Three ways to run inference:**
+  1. **Local Ollama** — never makes outbound calls beyond your Ollama server.
+  2. **BYOK OpenRouter** — paste your key in Settings; the browser calls OpenRouter directly. Your key never touches our server. Unlimited, free.
+  3. **Hosted key** — no key needed; generations go through the authenticated `/api/openrouter` proxy. Free accounts get 3/day; Pro gets 200/month.
+- **Accounts & persistence.** Sign-up/sign-in via Supabase Auth (email confirmation, password reset, account deletion). Every completed generation is stored — files with content hashes, the prompt, the provider/model, and the chat thread — under row-level security.
+- **Billing (Stripe, test mode).** Pro at $19/mo or $190/yr via Stripe Checkout; cancel/switch/update-card via the Stripe Customer Portal. Subscription state is written exclusively by a signature-verified, idempotent webhook.
+- **Output formats.** Single- and multi-file HTML/CSS/JS today; React + Vite project trees are the next major milestone.
+- **Honest telemetry posture.** No tracking in this build. Opt-in observability (Sentry, PostHog) arrives later with clear disclosure.
 
 ## What this is NOT (yet)
 
-- Not multi-tenant. No auth, no projects, no billing in this build — those land in the SaaS rewrite.
-- Not "100% local." Ollama mode is local, but OpenRouter mode is a cloud call.
-- Not production-hardened for public deployment. The OpenRouter proxy route is unauthenticated; do not deploy it publicly with a real `OPENROUTER_API_KEY` without adding rate limits and a spend cap first.
+- No live-updating preview during generation (streamed code view now; Sandpack preview upcoming).
+- No one-click deploys or GitHub sync yet (manual ZIP download works).
+- Rate limiting and abuse hardening are still in progress — if you deploy this publicly with a real `OPENROUTER_API_KEY`, know that the proxy is auth- and subscription-gated, but per-IP rate limits and spend caps are not in yet.
+- The packaged Docker Compose self-host bundle is on the roadmap; today self-hosting means running this repo plus your own Supabase project.
 
 ---
 
@@ -30,9 +32,10 @@ A developer tool for generating React + Vite (and legacy HTML/CSS/JS) websites f
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Node.js     | 20+     | Tested on 20.x and 22.x. |
-| Next.js     | 16.1.1  | Pinned in `package.json`. |
-| Ollama      | latest  | Required only if you want the local LLM path. |
-| OpenRouter account | — | Required only if you want the cloud LLM path. Free tier works for testing. |
+| Supabase project | free tier | **Required** — the app is account-based. Five minutes to set up. |
+| Ollama      | latest  | Only for the local LLM path. |
+| OpenRouter account | — | Only for the cloud LLM path. |
+| Stripe account | test mode | Only if you want the billing features. |
 
 For Ollama, pull a coding-capable model before first run, e.g.:
 
@@ -46,33 +49,48 @@ ollama pull qwen2.5-coder:14b
 git clone https://github.com/cja86104/ai-website-powerhouse.git
 cd ai-website-powerhouse
 npm install
-cp .env.example .env.local   # fill in only the keys you actually use
+cp .env.example .env.local
+```
+
+**1. Supabase (required).** Create a free project at [supabase.com](https://supabase.com), then in the SQL editor run the files in `supabase/migrations/` in order (`0001`, `0002`, `0003`). Copy the project URL and keys into `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co   # bare URL, no path
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+**2. Stripe (optional).** For billing features, put your **test-mode** secret key in `.env.local`, then create the product catalog and paste the printed price IDs:
+
+```bash
+node scripts/stripe-setup.mjs
+```
+
+For webhooks locally: `stripe listen --forward-to localhost:4000/api/stripe/webhook` and copy the printed `whsec_...` into `STRIPE_WEBHOOK_SECRET`.
+
+**3. Run.**
+
+```bash
 npm run dev
 ```
 
-Then open <http://localhost:4000>. Port 4000 is intentional — it's pinned in `package.json` so existing bookmarks and tester instructions don't drift.
+Open <http://localhost:4000>, create an account, and generate. Port 4000 is intentional and pinned in `package.json`.
 
 ## Configuration
 
-Open the in-app Settings panel to set:
+In-app Settings panel: provider toggle (Ollama / OpenRouter), Ollama URL, OpenRouter BYOK key + curated model catalog with verified pricing, and sampling parameters. Account page (`/account`): plan, upgrade, billing portal, sign-out, account deletion.
 
-- **Provider.** Ollama or OpenRouter.
-- **Ollama URL.** Defaults to `http://localhost:11434`. Override for remote / containerized Ollama.
-- **Ollama model.** e.g. `qwen2.5-coder:14b`.
-- **OpenRouter API key.** Pasted here for browser-direct calls. If you leave this blank, the app falls back to the server proxy (`/api/openrouter`) when `OPENROUTER_API_KEY` is set on the host.
-- **OpenRouter model.** Selected from a curated catalog with verified pricing.
-- **Sampling parameters.** Temperature, top-p, top-k, max tokens, context size.
-
-Environment variables live in `.env.local` (gitignored). See `.env.example` for every variable the app currently reads plus the variables reserved for the in-progress SaaS rewrite.
+See `.env.example` for every environment variable with inline documentation.
 
 ## Available scripts
 
 ```bash
-npm run dev      # next dev -p 4000
-npm run build    # next build
-npm run start    # next start
-npm run lint     # eslint
-npx tsc --noEmit # typecheck
+npm run dev              # next dev -p 4000
+npm run build            # next build
+npm run start            # next start
+npm run lint             # eslint
+npx tsc --noEmit         # typecheck
+node scripts/stripe-setup.mjs   # one-shot Stripe test catalog (idempotent)
 ```
 
 ## Project structure
@@ -80,23 +98,29 @@ npx tsc --noEmit # typecheck
 ```
 ai-website-powerhouse/
 ├── app/
-│   ├── api/openrouter/route.ts  # server-side OpenRouter proxy
-│   ├── layout.tsx
-│   ├── page.tsx
-│   └── globals.css
-├── components/
-│   └── AIWebsitePowerhouse.js   # single-file UI (refactor in progress)
+│   ├── (auth)/                   # sign-in/up, password reset + server actions
+│   ├── account/                  # plan, billing portal, deletion
+│   ├── api/openrouter/route.ts   # server-side OpenRouter proxy
+│   ├── api/stripe/webhook/       # subscription state machine (idempotent)
+│   └── auth/                     # email-confirmation callback, sign-out
+├── components/                   # modular UI (builder, chat, settings, files…)
 ├── lib/
-│   ├── llm.ts                   # provider-agnostic streaming helper
-│   └── models.ts                # curated OpenRouter model catalog
-└── public/                      # static assets
+│   ├── llm.ts                    # provider-agnostic streaming helper
+│   ├── models.ts                 # curated OpenRouter model catalog
+│   ├── supabase/                 # browser/server/admin clients + middleware
+│   ├── projects/                 # workspace load/persist server actions
+│   ├── stripe/                   # Stripe client + price resolution
+│   ├── billing/                  # subscription gate for hosted generations
+│   └── crypto/                   # AES-256-GCM at-rest secrets encryption
+├── supabase/migrations/          # 0001 schema · 0002 RLS · 0003 stripe events
+└── scripts/                      # stripe-setup.mjs
 ```
 
 ## Roadmap
 
-The single-user codebase is being rewritten into a multi-tenant SaaS with auth, billing, project persistence, live preview via Sandpack, and one-click deploy to Vercel and GitHub. The OSS repo will remain self-hostable via Docker Compose under the Functional Source License (see Licensing below).
+Done: modular refactor, Supabase auth, DB-backed projects with generation history, Stripe checkout + customer portal + webhook state machine, free-tier gating.
 
-The rewrite is happening in this repo on `main`. Follow commits and releases for progress.
+Next: React + Vite project-tree output, Sandpack live preview, multi-project dashboard with version history, one-click Vercel deploy, GitHub App sync, usage metering, packaged Docker Compose self-host.
 
 ## Contributing
 
