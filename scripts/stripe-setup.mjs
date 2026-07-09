@@ -107,23 +107,55 @@ const proAnnual = await ensurePrice(pro, "Pro Annual", {
   "recurring[interval]": "year",
 });
 
-/** Metered premium prices: one product, three prices (Section 7 §6.2). */
-const meteredParams = {
-  "recurring[interval]": "month",
-  "recurring[usage_type]": "metered",
-};
-const premiumHaiku = await ensurePrice(premium, "Premium — Haiku 4.5", {
-  unit_amount: "10",
-  ...meteredParams,
-});
-const premiumSonnet = await ensurePrice(premium, "Premium — Sonnet", {
-  unit_amount: "30",
-  ...meteredParams,
-});
-const premiumOpus = await ensurePrice(premium, "Premium — Opus", {
-  unit_amount: "80",
-  ...meteredParams,
-});
+/**
+ * Metered premium prices: one product, three prices (Section 7 §6.2).
+ *
+ * Since Stripe API 2025-03-31.basil, metered prices must be backed by
+ * Billing Meters. One meter per model keeps per-model invoice line
+ * items; each generation is one meter event (aggregation = count).
+ * Usage reporting (LATER phase) posts to /v1/billing/meter_events
+ * with the matching event_name and the customer's id.
+ */
+async function ensureMeter(eventName, displayName) {
+  const existing = await stripe("GET", "/billing/meters?status=active&limit=100");
+  const match = existing.data.find((m) => m.event_name === eventName);
+  if (match) {
+    console.log(`meter exists:    ${displayName} (${match.id})`);
+    return match;
+  }
+  const created = await stripe("POST", "/billing/meters", {
+    display_name: displayName,
+    event_name: eventName,
+    "default_aggregation[formula]": "count",
+    "customer_mapping[type]": "by_id",
+    "customer_mapping[event_payload_key]": "stripe_customer_id",
+  });
+  console.log(`meter created:   ${displayName} (${created.id})`);
+  return created;
+}
+
+async function ensureMeteredPrice(product, nickname, unitAmount, eventName, meterDisplayName) {
+  const meter = await ensureMeter(eventName, meterDisplayName);
+  return ensurePrice(product, nickname, {
+    unit_amount: unitAmount,
+    "recurring[interval]": "month",
+    "recurring[usage_type]": "metered",
+    "recurring[meter]": meter.id,
+  });
+}
+
+const premiumHaiku = await ensureMeteredPrice(
+  premium, "Premium — Haiku 4.5", "10",
+  "aiwp_premium_haiku", "AIWP Premium — Haiku generations",
+);
+const premiumSonnet = await ensureMeteredPrice(
+  premium, "Premium — Sonnet", "30",
+  "aiwp_premium_sonnet", "AIWP Premium — Sonnet generations",
+);
+const premiumOpus = await ensureMeteredPrice(
+  premium, "Premium — Opus", "80",
+  "aiwp_premium_opus", "AIWP Premium — Opus generations",
+);
 
 console.log("\nAdd these to .env.local:\n");
 console.log(`STRIPE_PRICE_ID_PRO_MONTHLY=${proMonthly.id}`);
