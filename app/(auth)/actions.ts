@@ -101,3 +101,99 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
   redirect("/sign-in");
 }
+
+/** Server action: send a password-recovery email (W2 Thu). */
+export async function requestPasswordReset(formData: FormData): Promise<void> {
+  const email = formData.get("email");
+  if (typeof email !== "string" || email.trim().length === 0) {
+    redirect(
+      `/forgot-password?error=${encodeURIComponent("Email is required.")}`,
+    );
+  }
+
+  const supabase = await createClient();
+  const headerList = await headers();
+  const origin = headerList.get("origin") ?? "http://localhost:4000";
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+  });
+
+  // Supabase does not reveal whether the address exists; errors here
+  // are operational (rate limits, misconfiguration) and safe to show.
+  if (error !== null) {
+    redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
+  }
+
+  redirect(
+    `/sign-in?message=${encodeURIComponent(
+      "If that email has an account, a password reset link is on its way.",
+    )}`,
+  );
+}
+
+/** Server action: set a new password from a recovery session (W2 Thu). */
+export async function updatePassword(formData: FormData): Promise<void> {
+  const password = formData.get("password");
+  const confirm = formData.get("confirm");
+
+  if (typeof password !== "string" || password.length < 6) {
+    redirect(
+      `/reset-password?error=${encodeURIComponent(
+        "Password must be at least 6 characters.",
+      )}`,
+    );
+  }
+  if (password !== confirm) {
+    redirect(
+      `/reset-password?error=${encodeURIComponent("Passwords do not match.")}`,
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error !== null) {
+    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+  }
+
+  redirect("/");
+}
+
+/** Server action: permanently delete the signed-in user's account (W2 Thu). */
+export async function deleteAccount(formData: FormData): Promise<void> {
+  const confirmation = formData.get("confirmation");
+  if (confirmation !== "DELETE") {
+    redirect(
+      `/account?error=${encodeURIComponent(
+        'Type "DELETE" in the confirmation box to delete your account.',
+      )}`,
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    redirect("/sign-in");
+  }
+
+  // Admin API required: users cannot delete their own auth.users row
+  // via the anon-key client. The public.users row and every child
+  // table follow via on-delete-cascade (see 0001_initial.sql).
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+
+  if (error !== null) {
+    redirect(`/account?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await supabase.auth.signOut();
+  redirect(
+    `/sign-in?message=${encodeURIComponent(
+      "Your account and all associated data have been permanently deleted.",
+    )}`,
+  );
+}

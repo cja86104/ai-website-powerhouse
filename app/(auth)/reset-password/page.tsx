@@ -1,31 +1,35 @@
 /**
- * AI Website Powerhouse — sign-in page (W2).
+ * AI Website Powerhouse — set-new-password page (W2 Thu).
  *
- * Server component: the form posts to the `signIn` server action;
- * failures round-trip back here as `?error=`, and the post-sign-up
- * confirmation prompt arrives as `?message=`. Already-authenticated
- * visitors are bounced to the app root.
+ * Reached from the recovery-email link via /auth/callback?next=
+ * /reset-password, which leaves the visitor holding a recovery
+ * session. Unlike sign-in/sign-up, an authenticated user is expected
+ * here; an UNauthenticated visitor means the link expired or was
+ * already used, so they get sent back to request a fresh one.
  */
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { signIn } from "@/app/(auth)/actions";
+import { updatePassword } from "@/app/(auth)/actions";
 
-export default async function SignInPage({
+export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user !== null) {
-    redirect("/");
+  if (user === null) {
+    redirect(
+      `/forgot-password?error=${encodeURIComponent(
+        "That reset link is expired or already used. Request a new one.",
+      )}`,
+    );
   }
 
-  const { error, message } = await searchParams;
+  const { error } = await searchParams;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#2d1b3d] to-[#4a1942] flex items-center justify-center p-4">
@@ -33,49 +37,48 @@ export default async function SignInPage({
         <h1 className="text-3xl font-bold bg-gradient-to-r from-[#ff6b35] to-[#f7931e] bg-clip-text text-transparent mb-2">
           AI Website Powerhouse
         </h1>
-        <h2 className="text-xl font-semibold text-orange-100 mb-6">Sign in</h2>
+        <h2 className="text-xl font-semibold text-orange-100 mb-6">
+          Choose a new password
+        </h2>
 
-        {message !== undefined && (
-          <p className="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">
-            {message}
-          </p>
-        )}
         {error !== undefined && (
           <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
             {error}
           </p>
         )}
 
-        <form action={signIn} className="space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-orange-200 mb-2"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 focus:outline-none focus:border-orange-500/50"
-            />
-          </div>
+        <form action={updatePassword} className="space-y-4">
           <div>
             <label
               htmlFor="password"
               className="block text-sm font-medium text-orange-200 mb-2"
             >
-              Password
+              New password
             </label>
             <input
               id="password"
               name="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="new-password"
               required
+              minLength={6}
+              className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 focus:outline-none focus:border-orange-500/50"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="confirm"
+              className="block text-sm font-medium text-orange-200 mb-2"
+            >
+              Confirm new password
+            </label>
+            <input
+              id="confirm"
+              name="confirm"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={6}
               className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 focus:outline-none focus:border-orange-500/50"
             />
           </div>
@@ -83,28 +86,9 @@ export default async function SignInPage({
             type="submit"
             className="w-full py-3 px-6 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
           >
-            Sign in
+            Update password
           </button>
         </form>
-
-        <p className="mt-4 text-sm">
-          <Link
-            href="/forgot-password"
-            className="text-orange-400 hover:text-orange-300 font-medium"
-          >
-            Forgot password?
-          </Link>
-        </p>
-
-        <p className="mt-6 text-sm text-orange-200/70">
-          No account yet?{" "}
-          <Link
-            href="/sign-up"
-            className="text-orange-400 hover:text-orange-300 font-medium"
-          >
-            Create one
-          </Link>
-        </p>
       </div>
     </div>
   );
