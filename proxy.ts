@@ -8,7 +8,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { gateHostedGeneration } from "@/lib/billing/gate";
 import { allowRequest, clientIp } from "@/lib/ratelimit/limiter";
 
 /** Form-post paths covered by the auth rate limiter (W4). */
@@ -44,22 +43,10 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const response = await updateSession(request);
-
-  // Subscription gate for the hosted-key generation path (W3 Thu).
-  // Only POST /api/openrouter is metered; the GET availability probe
-  // stays free. See lib/billing/gate.ts for the entitlement rules.
-  if (
-    request.nextUrl.pathname === "/api/openrouter" &&
-    request.method === "POST"
-  ) {
-    const denial = await gateHostedGeneration(request);
-    if (denial !== null) {
-      return denial;
-    }
-  }
-
-  return response;
+  // Subscription quotas moved INTO the route handler in W4 (it can see
+  // the requested model; middleware cannot read bodies) — see
+  // lib/billing/quota.ts. The proxy keeps auth + rate limiting only.
+  return await updateSession(request);
 }
 
 export const config = {

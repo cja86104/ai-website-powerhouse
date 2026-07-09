@@ -15,18 +15,18 @@
  *   5. Surface clear, non-leaking errors when the key is missing, the body
  *      is malformed, or OpenRouter rejects the request.
  *
- * Rate-limit / abuse posture (NOT YET IMPLEMENTED — flag for the future):
- *   This route is unauthenticated. Any visitor to a deployment that has
- *   OPENROUTER_API_KEY set can spend the host's credits. Before exposing a
- *   public deployment, add:
- *     - per-IP rate limiting
- *     - a daily spend cap (read from env)
- *     - either session auth or a shared-secret header
- *   For private / self-hosted deployments the current implementation is
- *   appropriate as-is.
+ * Rate-limit / abuse posture (implemented across W2–W4):
+ *   - Session auth: proxy.ts redirects unauthenticated requests app-wide.
+ *   - Per-IP rate limiting: proxy.ts via lib/ratelimit (20 per 10 min).
+ *   - Subscription quotas: the checkHostedQuota call below (free =
+ *     DeepSeek only, 3/day; Pro = 200 per 30 days) — added 2026-07-10
+ *     with explicit user approval as the sole modification to this
+ *     protected file since it shipped. A host daily spend cap remains
+ *     a future item (tracked for the usage-metering work).
  */
 
 import type { NextRequest } from "next/server";
+import { checkHostedQuota } from "@/lib/billing/quota";
 
 /**
  * Use the Node.js runtime (not Edge). The Node runtime gives deterministic
@@ -163,6 +163,14 @@ export async function POST(request: NextRequest): Promise<Response> {
     return errorResponse(400, validationError);
   }
   const typed = body as ProxyRequestBody;
+
+  // Subscription quota (W4; user-approved modification 2026-07-10).
+  // Runs after validation so the model slug is trustworthy, before any
+  // upstream work so denied requests cost nothing.
+  const quota = await checkHostedQuota(typed.model);
+  if (!quota.allowed) {
+    return errorResponse(quota.status, quota.message);
+  }
 
   // Compose the upstream payload. Default `stream: true` so the existing
   // streaming UI keeps working unless the caller explicitly disables it.
