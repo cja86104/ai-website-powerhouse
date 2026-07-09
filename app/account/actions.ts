@@ -87,3 +87,61 @@ export async function startCheckout(formData: FormData): Promise<void> {
   }
   redirect(session.url);
 }
+
+/**
+ * Server action: open the Stripe Customer Portal (W3 Thu) — Stripe's
+ * hosted page for cancellation, plan switches, payment-method updates,
+ * and invoice history. Requires an existing Stripe customer (created
+ * by the first checkout).
+ *
+ * Test-mode note: the portal needs a saved default configuration —
+ * Stripe dashboard → Settings → Billing → Customer portal → Save.
+ * A clear error surfaces here if that hasn't been done yet.
+ */
+export async function openBillingPortal(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    redirect("/sign-in");
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("users")
+    .select("stripe_customer_id")
+    .eq("id", user.id)
+    .single();
+  if (profileError !== null) {
+    redirect(`/account?error=${encodeURIComponent(profileError.message)}`);
+  }
+  const customerId = profile.stripe_customer_id as string | null;
+  if (customerId === null) {
+    redirect(
+      `/account?error=${encodeURIComponent(
+        "No billing profile yet — upgrade first, then manage billing here.",
+      )}`,
+    );
+  }
+
+  const headerList = await headers();
+  const origin = headerList.get("origin") ?? "http://localhost:4000";
+
+  let portalUrl: string;
+  try {
+    const stripe = getStripe();
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${origin}/account`,
+    });
+    portalUrl = session.url;
+  } catch (error) {
+    redirect(
+      `/account?error=${encodeURIComponent(
+        error instanceof Error ? error.message : String(error),
+      )}`,
+    );
+  }
+
+  redirect(portalUrl);
+}

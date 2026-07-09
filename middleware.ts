@@ -7,9 +7,25 @@
 
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { gateHostedGeneration } from "@/lib/billing/gate";
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  const response = await updateSession(request);
+
+  // Subscription gate for the hosted-key generation path (W3 Thu).
+  // Only POST /api/openrouter is metered; the GET availability probe
+  // stays free. See lib/billing/gate.ts for the entitlement rules.
+  if (
+    request.nextUrl.pathname === "/api/openrouter" &&
+    request.method === "POST"
+  ) {
+    const denial = await gateHostedGeneration(request);
+    if (denial !== null) {
+      return denial;
+    }
+  }
+
+  return response;
 }
 
 export const config = {

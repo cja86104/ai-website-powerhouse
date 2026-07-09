@@ -12,7 +12,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut, deleteAccount } from "@/app/(auth)/actions";
-import { startCheckout } from "@/app/account/actions";
+import { startCheckout, openBillingPortal } from "@/app/account/actions";
 
 export default async function AccountPage({
   searchParams,
@@ -32,7 +32,7 @@ export default async function AccountPage({
   // Billing state lives on public.users, written only by the webhook.
   const { data: profile } = await supabase
     .from("users")
-    .select("subscription_status, current_period_end")
+    .select("subscription_status, current_period_end, stripe_customer_id")
     .eq("id", user.id)
     .single();
   const subscriptionStatus =
@@ -102,6 +102,18 @@ export default async function AccountPage({
               {periodEnd}
             </p>
           )}
+
+          {profile?.stripe_customer_id !== null &&
+            profile?.stripe_customer_id !== undefined && (
+              <form action={openBillingPortal} className="mt-4">
+                <button
+                  type="submit"
+                  className="py-2 px-6 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg font-semibold transition-colors"
+                >
+                  Manage billing
+                </button>
+              </form>
+            )}
 
           {subscriptionStatus !== "pro" && (
             <div className="mt-4 flex flex-col sm:flex-row gap-3">
