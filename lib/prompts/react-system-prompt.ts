@@ -42,6 +42,8 @@ Marker rules:
 
 REQUIRED PROJECT STRUCTURE (every generation must include ALL of these):
 
+Your FIRST emitted file must be this exact package.json — emit it verbatim, do not treat this example as already provided:
+
 ===AIWP:FILE path="package.json"===
 {
   "name": "aiwp-site",

@@ -42,6 +42,7 @@ import {
   parseProjectFiles,
   serializeProjectFiles,
 } from "@/lib/generation/project-parser";
+import { ensureReactScaffold } from "@/lib/generation/react-scaffold";
 import type { GeneratedFile } from "@/lib/generation/types";
 import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
@@ -366,6 +367,11 @@ function Builder() {
           if (isReact && files.length === 0) {
             files = parseGeneratedFiles(cleanedCode);
           }
+          if (isReact) {
+            // Backstop (W5 Fri): inject the pinned scaffold files if
+            // the model forgot them — ZIPs must always be runnable.
+            files = ensureReactScaffold(files);
+          }
           setGeneratedFiles(files);
           if (files.length > 0) {
             setSelectedFile(files[0]);
@@ -524,6 +530,11 @@ function Builder() {
             : parseGeneratedFiles(cleanedCode);
           if (isReact && files.length === 0) {
             files = parseGeneratedFiles(cleanedCode);
+          }
+          if (isReact) {
+            // Backstop (W5 Fri): inject the pinned scaffold files if
+            // the model forgot them — ZIPs must always be runnable.
+            files = ensureReactScaffold(files);
           }
           setGeneratedFiles(files);
           if (selectedFile) {
