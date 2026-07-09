@@ -27,8 +27,6 @@ export interface UiState {
   setShowGithubPanel: (value: boolean) => void;
   showDeployModal: boolean;
   setShowDeployModal: (value: boolean) => void;
-  showRestoreModal: boolean;
-  setShowRestoreModal: (value: boolean) => void;
 
   // Preview pane
   previewMode: PreviewMode;
@@ -62,8 +60,6 @@ export const useUiStore = create<UiState>()((set) => ({
   setShowGithubPanel: (value) => set({ showGithubPanel: value }),
   showDeployModal: false,
   setShowDeployModal: (value) => set({ showDeployModal: value }),
-  showRestoreModal: false,
-  setShowRestoreModal: (value) => set({ showRestoreModal: value }),
 
   previewMode: "auto",
   setPreviewMode: (updater) =>

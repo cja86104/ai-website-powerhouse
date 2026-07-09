@@ -105,6 +105,12 @@ export default async function SignInPage({
             Create one
           </Link>
         </p>
+
+        <p className="mt-6 text-xs text-orange-200/40 space-x-3">
+          <Link href="/terms" className="hover:text-orange-300">Terms</Link>
+          <Link href="/privacy" className="hover:text-orange-300">Privacy</Link>
+          <Link href="/refunds" className="hover:text-orange-300">Refunds</Link>
+        </p>
       </div>
     </div>
   );

@@ -4,7 +4,9 @@
  * SettingsPanel — the Settings modal shell. Owns the backdrop, the
  * close button, and the composition of the eight section components:
  * ProviderToggle, OllamaSection, SamplingParams, SupabaseSection,
- * GithubSection, OpenRouterSection, SystemStatusList, DangerZone.
+ * GithubSection, OpenRouterSection, SystemStatusList. (DangerZone was
+ * retired in W4 — the localStorage snapshot it cleared no longer
+ * exists; account deletion lives on /account.)
  *
  * Reads `showSettings` from the UI store; closes via
  * `setShowSettings(false)`. All hooks are declared before the
@@ -24,7 +26,6 @@ import { SupabaseSection } from "@/components/settings/SupabaseSection";
 import { GithubSection } from "@/components/settings/GithubSection";
 import { OpenRouterSection } from "@/components/settings/OpenRouterSection";
 import { SystemStatusList } from "@/components/settings/SystemStatusList";
-import { DangerZone } from "@/components/settings/DangerZone";
 
 export const SettingsPanel = memo(function SettingsPanel() {
   const showSettings = useUiStore((s) => s.showSettings);
@@ -57,8 +58,6 @@ export const SettingsPanel = memo(function SettingsPanel() {
           </div>
 
           <SystemStatusList />
-
-          <DangerZone />
         </div>
       </div>
     </div>

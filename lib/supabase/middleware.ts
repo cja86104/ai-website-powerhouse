@@ -30,6 +30,10 @@ const PUBLIC_PATH_PREFIXES = [
   "/reset-password",
   "/auth/callback",
   "/auth/signout",
+  // Legal pages must be readable before signing up (W4).
+  "/privacy",
+  "/terms",
+  "/refunds",
   // Stripe posts webhooks unauthenticated; the route verifies its own
   // HMAC signature instead of a session (W3).
   "/api/stripe/webhook",
