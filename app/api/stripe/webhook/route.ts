@@ -126,6 +126,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             current_period_end: periodEnd,
+            cancel_at_period_end: false,
           })
           .eq("id", userId);
         if (error !== null) throw new Error(error.message);
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           .update({
             subscription_status: mapSubscriptionStatus(subscription.status),
             current_period_end: subscriptionPeriodEnd(subscription),
+            cancel_at_period_end: subscription.cancel_at_period_end,
           })
           .eq("stripe_subscription_id", subscription.id);
         if (error !== null) throw new Error(error.message);
@@ -151,7 +153,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // the status flips now, feature gating reads the period end.
         const { error } = await admin
           .from("users")
-          .update({ subscription_status: "canceled" })
+          .update({
+            subscription_status: "canceled",
+            cancel_at_period_end: false,
+          })
           .eq("stripe_subscription_id", subscription.id);
         if (error !== null) throw new Error(error.message);
         break;

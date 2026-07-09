@@ -32,7 +32,9 @@ export default async function AccountPage({
   // Billing state lives on public.users, written only by the webhook.
   const { data: profile } = await supabase
     .from("users")
-    .select("subscription_status, current_period_end, stripe_customer_id")
+    .select(
+      "subscription_status, current_period_end, stripe_customer_id, cancel_at_period_end",
+    )
     .eq("id", user.id)
     .single();
   const subscriptionStatus =
@@ -95,6 +97,11 @@ export default async function AccountPage({
           <p className="text-cyan-200 mb-1">
             <span className="text-cyan-300/70">Current plan:</span>{" "}
             <span className="font-semibold uppercase">{subscriptionStatus}</span>
+            {profile?.cancel_at_period_end === true && periodEnd !== null && (
+              <span className="ml-2 text-sm text-orange-300">
+                — cancels {periodEnd}
+              </span>
+            )}
           </p>
           {periodEnd !== null && (
             <p className="text-cyan-200 mb-4">

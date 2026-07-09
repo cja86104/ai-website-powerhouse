@@ -1,5 +1,6 @@
 /**
- * AI Website Powerhouse — root middleware (W2).
+ * AI Website Powerhouse — root proxy (W2; renamed from middleware.ts
+ * in W4 per the Next 16.2 file-convention rename).
  *
  * Delegates to `lib/supabase/middleware.ts` to keep auth sessions
  * fresh on every request. See that module for the no-gating decision.
@@ -9,7 +10,7 @@ import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { gateHostedGeneration } from "@/lib/billing/gate";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = await updateSession(request);
 
   // Subscription gate for the hosted-key generation path (W3 Thu).
