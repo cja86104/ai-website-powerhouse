@@ -10,7 +10,13 @@ import type { NextConfig } from "next";
  *  - `style-src 'unsafe-inline'` for styled JSX / Tailwind inline vars.
  *  - `connect-src` allows Supabase (auth/DB), OpenRouter (BYOK
  *    browser-direct path), and localhost Ollama on any port.
- *  - `frame-src`/`child-src` blob: — the preview iframe uses srcdoc.
+ *  - `frame-src` blob:/data: for the legacy srcdoc iframe, plus
+ *    https://*.codesandbox.io — Sandpack (W6) renders the React live
+ *    preview in an iframe served from codesandbox.io; without this
+ *    the browser silently blocks the frame and the preview is blank.
+ *  - `connect-src`/`worker-src` codesandbox.io + blob: — the Sandpack
+ *    client fetches bundler assets and spawns blob: workers from the
+ *    parent page.
  *  - `img-src` data:/blob: — generated sites embed base64 images.
  * The preview iframe's own content is sandboxed by the iframe origin,
  * not by this policy.
@@ -24,8 +30,9 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://*.supabase.co https://openrouter.ai http://localhost:* http://127.0.0.1:*",
-      "frame-src 'self' blob: data: https://challenges.cloudflare.com",
+      "connect-src 'self' https://*.supabase.co https://openrouter.ai https://*.codesandbox.io http://localhost:* http://127.0.0.1:*",
+      "frame-src 'self' blob: data: https://challenges.cloudflare.com https://*.codesandbox.io",
+      "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self' https://checkout.stripe.com https://billing.stripe.com",
