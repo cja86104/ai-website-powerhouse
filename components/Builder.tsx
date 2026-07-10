@@ -49,6 +49,8 @@ import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
 import { buildReactSystemPrompt } from "@/lib/prompts/react-system-prompt";
 import { buildReactModifyPrompt } from "@/lib/prompts/react-modify-prompt";
+import { buildScopedModifyPrompt } from "@/lib/prompts/scoped-modify-prompt";
+import { extractScopedFileContent } from "@/lib/generation/scoped-parser";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import {
@@ -68,6 +70,23 @@ import { useTemplatesStore } from "@/lib/store/templates-store";
 
 /** Throttle interval (ms) for streaming UI updates during generation. */
 const UPDATE_INTERVAL = 150;
+
+/**
+ * Rebuild the raw text buffer from parsed files — client-side twin of
+ * the server's joinFiles (lib/projects/actions.ts), kept semantically
+ * identical so the modify prompt sees the same context either way.
+ */
+function joinFilesForFramework(
+  files: GeneratedFile[],
+  framework: string,
+): string {
+  if (files.length === 0) return "";
+  if (framework === "react-vite") return serializeProjectFiles(files);
+  if (files.length === 1) return files[0].content;
+  return files
+    .map((f) => `<!-- FILE: ${f.name} -->\n${f.content}`)
+    .join("\n\n");
+}
 
 /** Optional explicit project to open — set by /p/[projectId] (W7). */
 export interface BuilderProps {
@@ -99,6 +118,7 @@ function Builder({ initialProjectId }: BuilderProps) {
   const setChatHistory = useChatStore((s) => s.setChatHistory);
   const chatMessage = useChatStore((s) => s.chatMessage);
   const setChatMessage = useChatStore((s) => s.setChatMessage);
+  const scopedFilePath = useChatStore((s) => s.scopedFilePath);
 
   const setUserTemplates = useTemplatesStore((s) => s.setUserTemplates);
 
@@ -329,14 +349,7 @@ function Builder({ initialProjectId }: BuilderProps) {
       }
       // Rebuild the raw buffer the same way loadWorkspace does, so the
       // modify prompt sees semantically identical context.
-      const code =
-        framework === "react-vite"
-          ? serializeProjectFiles(files)
-          : files.length === 1
-            ? files[0].content
-            : files
-                .map((f) => `<!-- FILE: ${f.name} -->\n${f.content}`)
-                .join("\n\n");
+      const code = joinFilesForFramework(files, framework);
       setGeneratedFiles(files);
       setGeneratedCode(code);
       setSelectedFile(files[0]);
@@ -540,15 +553,33 @@ function Builder({ initialProjectId }: BuilderProps) {
     setIsGenerating(true);
 
     const isReact = framework === "react-vite";
-    const modifyPrompt = isReact
-      ? buildReactModifyPrompt({
-          serializedProject: serializeProjectFiles(generatedFiles),
-          chatMessage,
-        })
-      : buildModifyPrompt({
-          generatedCode,
-          chatMessage,
-        });
+
+    // File-aware scope (W8 Mon): when the user picked one file in the
+    // chat scope dropdown, use the single-file contract — the model
+    // sees only that file (plus the path listing) and returns only its
+    // updated content; every other file stays byte-untouched.
+    const scopedFile =
+      scopedFilePath !== null
+        ? (generatedFiles.find((f) => f.name === scopedFilePath) ?? null)
+        : null;
+
+    const modifyPrompt =
+      scopedFile !== null
+        ? buildScopedModifyPrompt({
+            filePath: scopedFile.name,
+            fileContent: scopedFile.content,
+            projectPaths: generatedFiles.map((f) => f.name),
+            chatMessage,
+          })
+        : isReact
+          ? buildReactModifyPrompt({
+              serializedProject: serializeProjectFiles(generatedFiles),
+              chatMessage,
+            })
+          : buildModifyPrompt({
+              generatedCode,
+              chatMessage,
+            });
 
     // Resolve the effective OpenRouter model. Same rule as handleGenerate.
     const effectiveOrModel =
@@ -587,28 +618,51 @@ function Builder({ initialProjectId }: BuilderProps) {
           }
         },
         onDone: (fullText) => {
-          setGeneratedCode(fullText);
-          const cleanedCode = fullText.trim();
-          let files: GeneratedFile[] = isReact
-            ? parseProjectFiles(cleanedCode)
-            : parseGeneratedFiles(cleanedCode);
-          if (isReact && files.length === 0) {
-            files = parseGeneratedFiles(cleanedCode);
-          }
-          if (isReact) {
-            // Backstop (W5 Fri): inject the pinned scaffold files if
-            // the model forgot them — ZIPs must always be runnable.
-            files = ensureReactScaffold(files);
+          let files: GeneratedFile[];
+          let assistantMessage: ChatThreadMessage;
+          if (scopedFile !== null) {
+            // Scoped contract: fullText IS the one file's new content
+            // (tolerantly unfenced). Merge it over the scoped file and
+            // rebuild the raw buffer from the full set.
+            const updatedContent = extractScopedFileContent(fullText);
+            files = generatedFiles.map((f) =>
+              f.name === scopedFile.name
+                ? { ...f, content: updatedContent }
+                : f,
+            );
+            setGeneratedCode(joinFilesForFramework(files, framework));
+            assistantMessage = {
+              role: "assistant",
+              content: `Updated ${scopedFile.name}.`,
+            };
+          } else {
+            setGeneratedCode(fullText);
+            const cleanedCode = fullText.trim();
+            files = isReact
+              ? parseProjectFiles(cleanedCode)
+              : parseGeneratedFiles(cleanedCode);
+            if (isReact && files.length === 0) {
+              files = parseGeneratedFiles(cleanedCode);
+            }
+            if (isReact) {
+              // Backstop (W5 Fri): inject the pinned scaffold files if
+              // the model forgot them — ZIPs must always be runnable.
+              files = ensureReactScaffold(files);
+            }
+            assistantMessage = {
+              role: "assistant",
+              content: "Website updated successfully!",
+            };
           }
           setGeneratedFiles(files);
-          if (selectedFile) {
+          if (scopedFile !== null) {
+            setSelectedFile(
+              files.find((f) => f.name === scopedFile.name) ?? files[0],
+            );
+          } else if (selectedFile) {
             const updatedFile = files.find((f) => f.name === selectedFile.name);
             setSelectedFile(updatedFile || files[0]);
           }
-          const assistantMessage: ChatThreadMessage = {
-            role: "assistant",
-            content: "Website updated successfully!",
-          };
           setChatHistory((prev) => [...prev, assistantMessage]);
 
           // Persist the completed modify round (W2 Fri).
@@ -626,7 +680,10 @@ function Builder({ initialProjectId }: BuilderProps) {
                 aiProvider === "openrouter" && openrouterKey.trim().length > 0,
               parentGenerationId: latestGenerationIdRef.current,
               files,
-              newMessages: [userMessage, assistantMessage],
+              newMessages: [
+                { ...userMessage, scopedFilePath: scopedFile?.name ?? null },
+                assistantMessage,
+              ],
             })
               .then((generationId) => {
                 latestGenerationIdRef.current = generationId;
@@ -667,6 +724,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     chatMessage,
     generatedCode,
     generatedFiles,
+    scopedFilePath,
     framework,
     numCtx,
     temperature,

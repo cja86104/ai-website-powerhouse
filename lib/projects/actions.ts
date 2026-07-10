@@ -32,6 +32,8 @@ export type ProjectFramework = "react-vite" | "html";
 export interface WorkspaceMessage {
   role: "user" | "assistant";
   content: string;
+  /** Set when the message was a file-scoped modify request (W8). */
+  scopedFilePath?: string | null;
 }
 
 /** Everything the builder needs to resume where the user left off. */
@@ -426,6 +428,7 @@ export async function persistGeneration(
       user_id: user.id,
       role: message.role,
       content: message.content,
+      scoped_file_path: message.scopedFilePath ?? null,
       generation_id: generationId,
     }));
     const { error: messagesError } = await supabase

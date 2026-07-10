@@ -13,11 +13,16 @@
  * `onChatSubmit` is passed through to `MessageInput` — see that
  * component's header for why the callback still lives on the parent.
  *
+ * Since W8 Mon it also owns the file-scope picker: "Whole project"
+ * (default) or one generated file. The selection lives on the chat
+ * store; Builder's handleChatModify reads it to pick the scoped
+ * single-file contract over the full-replacement one.
+ *
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-4.
  */
 
 import { memo, useCallback, useMemo } from "react";
-import { Undo } from "lucide-react";
+import { FileCode2, Undo } from "lucide-react";
 import { useChatStore } from "@/lib/store/chat-store";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import { MessageList } from "@/components/chat/MessageList";
@@ -38,6 +43,9 @@ export const ChatInterface = memo(function ChatInterface({
   const codeHistory = useGenerationStore((s) => s.codeHistory);
   const setCodeHistory = useGenerationStore((s) => s.setCodeHistory);
   const setChatHistory = useChatStore((s) => s.setChatHistory);
+  const generatedFiles = useGenerationStore((s) => s.generatedFiles);
+  const scopedFilePath = useChatStore((s) => s.scopedFilePath);
+  const setScopedFilePath = useChatStore((s) => s.setScopedFilePath);
 
   const hasGeneratedCode = useMemo(
     () => generatedCode.length > 0,
@@ -87,6 +95,27 @@ export const ChatInterface = memo(function ChatInterface({
       </div>
 
       <MessageList />
+
+      {hasGeneratedCode && (
+        <div className="flex items-center gap-2 mb-2">
+          <FileCode2 className="w-4 h-4 text-purple-300 shrink-0" />
+          <select
+            value={scopedFilePath ?? ""}
+            onChange={(e) =>
+              setScopedFilePath(e.target.value === "" ? null : e.target.value)
+            }
+            className="flex-1 px-3 py-1.5 text-sm bg-[#1a1a2e] border border-purple-500/30 rounded-lg text-purple-100 focus:outline-none focus:border-purple-500/50"
+            title="Scope the next request to one file, or the whole project"
+          >
+            <option value="">Whole project</option>
+            {generatedFiles.map((file) => (
+              <option key={file.name} value={file.name}>
+                Only {file.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {hasGeneratedCode && <MessageInput onChatSubmit={onChatSubmit} />}
     </div>

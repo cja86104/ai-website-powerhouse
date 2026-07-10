@@ -28,6 +28,13 @@ export interface ChatState {
 
   chatMessage: string;
   setChatMessage: (value: string) => void;
+
+  /**
+   * File-aware chat scope (W8 Mon): null = whole project; a path =
+   * the next modify request targets only that file.
+   */
+  scopedFilePath: string | null;
+  setScopedFilePath: (value: string | null) => void;
 }
 
 export const useChatStore = create<ChatState>()((set) => ({
@@ -40,4 +47,7 @@ export const useChatStore = create<ChatState>()((set) => ({
 
   chatMessage: "",
   setChatMessage: (value) => set({ chatMessage: value }),
+
+  scopedFilePath: null,
+  setScopedFilePath: (value) => set({ scopedFilePath: value }),
 }));
