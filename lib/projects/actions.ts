@@ -438,3 +438,161 @@ export async function persistGeneration(
 
   return generationId;
 }
+
+/** One row in the project's version history (W7 Wed). */
+export interface GenerationSummary {
+  id: string;
+  kind: "initial" | "modify" | "restore";
+  prompt: string;
+  provider: string;
+  model: string;
+  parentGenerationId: string | null;
+  createdAt: string;
+}
+
+/** Complete generations for a project, newest first (W7 Wed). */
+export async function listGenerations(
+  projectId: string,
+): Promise<GenerationSummary[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) return [];
+
+  const { data, error } = await supabase
+    .from("generations")
+    .select("id, kind, prompt, provider, model, parent_generation_id, created_at")
+    .eq("project_id", projectId)
+    .eq("status", "complete")
+    .order("created_at", { ascending: false });
+  if (error !== null) {
+    throw new Error(`Failed to load history: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    kind:
+      row.kind === "modify"
+        ? "modify"
+        : row.kind === "restore"
+          ? "restore"
+          : "initial",
+    prompt: row.prompt as string,
+    provider: row.provider as string,
+    model: row.model as string,
+    parentGenerationId: row.parent_generation_id as string | null,
+    createdAt: row.created_at as string,
+  }));
+}
+
+/** The file snapshot of one generation (W7 Wed — history view/restore). */
+export async function loadGenerationFiles(
+  generationId: string,
+): Promise<GeneratedFile[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("project_files")
+    .select("path, content")
+    .eq("generation_id", generationId)
+    .order("created_at", { ascending: true });
+  if (error !== null) {
+    throw new Error(`Failed to load version files: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    name: row.path as string,
+    content: row.content as string,
+  }));
+}
+
+/**
+ * Fork from a historical generation into a NEW project (W7 Thu).
+ * The source stays untouched; the fork starts a fresh chain (kind
+ * 'restore', no parent — chains stay project-scoped) seeded with the
+ * source generation's files and prompt. Returns the new project id
+ * for navigation.
+ */
+export async function forkFromGeneration(
+  generationId: string,
+): Promise<string> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("forkFromGeneration requires a signed-in user.");
+  }
+
+  const { data: source, error: sourceError } = await supabase
+    .from("generations")
+    .select("id, project_id, prompt, provider, model, used_byo_key")
+    .eq("id", generationId)
+    .maybeSingle();
+  if (sourceError !== null || source === null) {
+    throw new Error("Source version not found.");
+  }
+
+  const { data: sourceProject, error: projectError } = await supabase
+    .from("projects")
+    .select("name, framework")
+    .eq("id", source.project_id as string)
+    .single();
+  if (projectError !== null) {
+    throw new Error(`Failed to load source project: ${projectError.message}`);
+  }
+
+  const files = await loadGenerationFiles(generationId);
+  if (files.length === 0) {
+    throw new Error("That version has no files to fork.");
+  }
+
+  const { data: newProject, error: createError } = await supabase
+    .from("projects")
+    .insert({
+      user_id: user.id,
+      name: `Fork of ${sourceProject.name as string}`,
+      framework: sourceProject.framework as string,
+    })
+    .select("id")
+    .single();
+  if (createError !== null) {
+    throw new Error(`Failed to create fork: ${createError.message}`);
+  }
+  const newProjectId = newProject.id as string;
+
+  const { data: newGeneration, error: genError } = await supabase
+    .from("generations")
+    .insert({
+      project_id: newProjectId,
+      user_id: user.id,
+      parent_generation_id: null,
+      kind: "restore",
+      prompt: source.prompt as string,
+      provider: source.provider as string,
+      model: source.model as string,
+      used_byo_key: source.used_byo_key as boolean,
+      status: "complete",
+      completed_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  if (genError !== null) {
+    throw new Error(`Failed to seed fork: ${genError.message}`);
+  }
+
+  const fileRows = files.map((file) => ({
+    project_id: newProjectId,
+    generation_id: newGeneration.id as string,
+    path: file.name,
+    content: file.content,
+    content_sha256: createHash("sha256").update(file.content).digest("hex"),
+    size_bytes: Buffer.byteLength(file.content, "utf8"),
+  }));
+  const { error: filesError } = await supabase
+    .from("project_files")
+    .insert(fileRows);
+  if (filesError !== null) {
+    throw new Error(`Failed to copy files into fork: ${filesError.message}`);
+  }
+
+  return newProjectId;
+}

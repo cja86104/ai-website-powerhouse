@@ -33,6 +33,7 @@ import { GenerationPanel } from "@/components/generation/GenerationPanel";
 import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { FileBrowser } from "@/components/files/FileBrowser";
 import { ChatInterface } from "@/components/chat/ChatInterface";
+import { HistoryPanel } from "@/components/history/HistoryPanel";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { DeployModal } from "@/components/modals/DeployModal";
 import { GithubPanel } from "@/components/modals/GithubPanel";
@@ -56,6 +57,7 @@ import {
 } from "@/lib/store/chat-store";
 import { useUiStore } from "@/lib/store/ui-store";
 import {
+  loadGenerationFiles,
   loadWorkspace,
   persistGeneration,
   startNewProject,
@@ -313,6 +315,51 @@ function Builder({ initialProjectId }: BuilderProps) {
     setCodeHistory,
     setGenerationStats,
   ]);
+
+  // Open a historical version (W7 Wed). Loads that generation's file
+  // snapshot into the workspace and re-points the modify chain at it:
+  // the next chat edit will persist with parent_generation_id = the
+  // restored generation, branching the history exactly where the user
+  // resumed. Nothing is written to the database by the restore itself.
+  const handleRestoreGeneration = useCallback(
+    async (generationId: string) => {
+      const files = await loadGenerationFiles(generationId);
+      if (files.length === 0) {
+        throw new Error("That version has no files.");
+      }
+      // Rebuild the raw buffer the same way loadWorkspace does, so the
+      // modify prompt sees semantically identical context.
+      const code =
+        framework === "react-vite"
+          ? serializeProjectFiles(files)
+          : files.length === 1
+            ? files[0].content
+            : files
+                .map((f) => `<!-- FILE: ${f.name} -->\n${f.content}`)
+                .join("\n\n");
+      setGeneratedFiles(files);
+      setGeneratedCode(code);
+      setSelectedFile(files[0]);
+      setCodeHistory([]);
+      latestGenerationIdRef.current = generationId;
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "Opened an earlier version. Your next edit will continue from here — later versions stay in the history.",
+        },
+      ]);
+    },
+    [
+      framework,
+      setGeneratedFiles,
+      setGeneratedCode,
+      setSelectedFile,
+      setCodeHistory,
+      setChatHistory,
+    ],
+  );
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -659,6 +706,8 @@ function Builder({ initialProjectId }: BuilderProps) {
               onGenerate={handleGenerate}
               onNewProject={handleNewProject}
             />
+
+            <HistoryPanel onRestore={handleRestoreGeneration} />
 
             <ChatInterface onChatSubmit={handleChatModify} />
           </div>
