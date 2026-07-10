@@ -38,7 +38,6 @@ const REACT_PACKAGE_JSON = `{
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
-    "esbuild-wasm": "^0.21.5",
     "vite": "^5.4.0"
   }
 }`;
