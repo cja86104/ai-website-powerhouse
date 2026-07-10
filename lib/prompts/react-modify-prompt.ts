@@ -34,6 +34,7 @@ REQUIREMENTS:
 - Implement the change completely, with error handling and polish
 - Keep the modification consistent with the existing design system
 - Do not add npm dependencies; the package.json dependency set is fixed
+- Tailwind loads from the CDN script in index.html: never add tailwind.config or @tailwind directives, and use only standard built-in utility classes (or arbitrary values), never invented theme tokens
 - Keep every existing feature and file that the request does not remove
 
 CRITICAL OUTPUT RULES:
