@@ -16,7 +16,7 @@
 
 import { memo } from "react";
 import Link from "next/link";
-import { Github, Settings, User } from "lucide-react";
+import { Github, LayoutGrid, Settings, User } from "lucide-react";
 import { useIntegrationsStore } from "@/lib/store/integrations-store";
 import { useUiStore } from "@/lib/store/ui-store";
 import { ChipRow } from "@/components/layout/ChipRow";
@@ -53,6 +53,13 @@ export const Header = memo(function Header() {
           >
             <Settings className="w-6 h-6 text-orange-300" />
           </button>
+          <Link
+            href="/dashboard"
+            className="p-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 transition-colors"
+            title="My Projects"
+          >
+            <LayoutGrid className="w-6 h-6 text-orange-300" />
+          </Link>
           <Link
             href="/account"
             className="p-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 transition-colors"

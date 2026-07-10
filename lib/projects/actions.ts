@@ -85,13 +85,48 @@ function joinFiles(
     .join("\n\n");
 }
 
+/** Summary row for the dashboard project list (W7). */
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  framework: ProjectFramework;
+  archived: boolean;
+  updatedAt: string;
+}
+
+/** All of the user's projects, newest first, archived included (W7). */
+export async function listProjects(): Promise<ProjectSummary[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) return [];
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, name, framework, archived, updated_at")
+    .order("updated_at", { ascending: false });
+  if (error !== null) {
+    throw new Error(`Failed to list projects: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    framework: row.framework === "react-vite" ? "react-vite" : "html",
+    archived: row.archived as boolean,
+    updatedAt: row.updated_at as string,
+  }));
+}
+
 /**
  * Load (and on first visit, create) the user's workspace: their
  * project, the latest complete generation's files, and the chat
  * thread. Throws when called without a session — the middleware
  * gate makes that unreachable in normal flows.
  */
-export async function loadWorkspace(): Promise<WorkspacePayload> {
+export async function loadWorkspace(
+  requestedProjectId?: string,
+): Promise<WorkspacePayload> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -100,7 +135,36 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
     throw new Error("loadWorkspace requires a signed-in user.");
   }
 
-  // Fetch-or-create the implicit V1 project (newest non-archived).
+  // W7: an explicit project id (from /p/[projectId]) wins; opening an
+  // archived project un-archives it — "open" means "make active".
+  // RLS guarantees the row belongs to the caller.
+  if (requestedProjectId !== undefined) {
+    const { data: requested, error: requestedError } = await supabase
+      .from("projects")
+      .select("id, name, framework, archived")
+      .eq("id", requestedProjectId)
+      .maybeSingle();
+    if (requestedError !== null) {
+      throw new Error(`Failed to open project: ${requestedError.message}`);
+    }
+    if (requested === null) {
+      throw new Error("Project not found.");
+    }
+    if (requested.archived === true) {
+      await supabase
+        .from("projects")
+        .update({ archived: false })
+        .eq("id", requestedProjectId);
+    }
+    return loadWorkspaceForProject(
+      supabase,
+      requested.id as string,
+      requested.name as string,
+      requested.framework === "react-vite" ? "react-vite" : "html",
+    );
+  }
+
+  // Fetch-or-create the implicit project (newest non-archived).
   const { data: existing, error: projectError } = await supabase
     .from("projects")
     .select("id, name, framework")
@@ -138,6 +202,19 @@ export async function loadWorkspace(): Promise<WorkspacePayload> {
     framework = "react-vite";
   }
 
+  return loadWorkspaceForProject(supabase, projectId, projectName, framework);
+}
+
+/**
+ * Shared tail of loadWorkspace (W7): given a resolved project, load
+ * its latest complete generation's files and the chat thread.
+ */
+async function loadWorkspaceForProject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string,
+  projectName: string,
+  framework: ProjectFramework,
+): Promise<WorkspacePayload> {
   // Latest complete generation, if any.
   const { data: generations, error: genError } = await supabase
     .from("generations")

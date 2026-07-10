@@ -67,7 +67,12 @@ import { useTemplatesStore } from "@/lib/store/templates-store";
 /** Throttle interval (ms) for streaming UI updates during generation. */
 const UPDATE_INTERVAL = 150;
 
-function Builder() {
+/** Optional explicit project to open — set by /p/[projectId] (W7). */
+export interface BuilderProps {
+  initialProjectId?: string;
+}
+
+function Builder({ initialProjectId }: BuilderProps) {
   // Generation Store — `prompt` is read for the generate call; the
   // write side lives in PromptForm/TemplatePicker (PR-3). The undo
   // stack read side lives in ChatInterface (PR-4); only the
@@ -187,7 +192,7 @@ function Builder() {
         console.error("Template load failed:", error),
       );
 
-    loadWorkspace()
+    loadWorkspace(initialProjectId)
       .then((workspace) => {
         projectIdRef.current = workspace.projectId;
         latestGenerationIdRef.current = workspace.latestGenerationId;
@@ -673,11 +678,13 @@ function Builder() {
  * Default export: Builder wrapped in ErrorBoundary + HydrationGate.
  * See the module docblock for why the gate must wrap the tree.
  */
-export default function BuilderWithErrorBoundary() {
+export default function BuilderWithErrorBoundary({
+  initialProjectId,
+}: BuilderProps = {}) {
   return (
     <ErrorBoundary>
       <HydrationGate>
-        <Builder />
+        <Builder initialProjectId={initialProjectId} />
       </HydrationGate>
     </ErrorBoundary>
   );
