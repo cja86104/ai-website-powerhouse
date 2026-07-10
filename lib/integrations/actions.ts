@@ -84,3 +84,48 @@ export async function loadOpenrouterKey(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Persist (or clear, with an empty string) the user's Vercel access
+ * token (W8). Encrypted at rest like the OpenRouter key — but unlike
+ * that key it is NEVER returned to the browser: deploys decrypt it
+ * server-side only (lib/deploy/vercel.ts).
+ */
+export async function saveVercelToken(token: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("Sign in to save your Vercel token.");
+  }
+
+  const trimmed = token.trim();
+  const encrypted = trimmed.length > 0 ? encryptSecret(trimmed) : null;
+
+  const { error } = await supabase
+    .from("user_integrations")
+    .update({ vercel_token_encrypted: encrypted })
+    .eq("user_id", user.id);
+  if (error !== null) {
+    throw new Error(`Failed to save token: ${error.message}`);
+  }
+}
+
+/** Whether a Vercel token is saved (the token itself never leaves the server). */
+export async function hasVercelToken(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) return false;
+
+  const { data, error } = await supabase
+    .from("user_integrations")
+    .select("vercel_token_encrypted")
+    .eq("user_id", user.id)
+    .single();
+  if (error !== null || data === null) return false;
+  const encrypted = data.vercel_token_encrypted as string | null;
+  return encrypted !== null && encrypted.length > 0;
+}
