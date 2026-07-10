@@ -27,6 +27,8 @@ export interface UserTemplate {
 
 export interface TemplatesState {
   userTemplates: UserTemplate[];
+  /** Replace the full list — used by the account sync at load (2026-07-11). */
+  setUserTemplates: (templates: UserTemplate[]) => void;
   addUserTemplate: (template: UserTemplate) => void;
   removeUserTemplate: (id: string) => void;
 }
@@ -39,6 +41,7 @@ export const useTemplatesStore = create<TemplatesState>()(
   persist(
     (set) => ({
       userTemplates: [],
+      setUserTemplates: (templates) => set({ userTemplates: templates }),
       addUserTemplate: (template) =>
         set((state) => ({ userTemplates: [...state.userTemplates, template] })),
       removeUserTemplate: (id) =>

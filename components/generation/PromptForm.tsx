@@ -27,6 +27,7 @@ import { memo } from "react";
 import { Code, Loader2 } from "lucide-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import { useTemplatesStore } from "@/lib/store/templates-store";
+import { createUserTemplate } from "@/lib/templates/actions";
 
 export interface PromptFormProps {
   /**
@@ -44,20 +45,29 @@ export const PromptForm = memo(function PromptForm({
   const isGenerating = useGenerationStore((s) => s.isGenerating);
   const addUserTemplate = useTemplatesStore((s) => s.addUserTemplate);
 
-  const handleSaveTemplate = () => {
+  // Saves to the ACCOUNT (2026-07-11) — templates follow the login,
+  // not the browser. The store is updated with the DB row so the
+  // picker reflects the save instantly.
+  const handleSaveTemplate = async () => {
     if (!prompt.trim()) {
       alert("Please enter a prompt first");
       return;
     }
     const templateName = window.prompt("Enter a name for this template:");
     if (!templateName?.trim()) return;
-    addUserTemplate({
-      id: Date.now().toString(),
-      name: templateName.trim(),
-      prompt: prompt.trim(),
-      createdAt: Date.now(),
-    });
-    alert(`Template "${templateName}" saved!`);
+    try {
+      const saved = await createUserTemplate(templateName, prompt);
+      addUserTemplate(saved);
+      alert(
+        `Template "${saved.name}" saved to your account! Find it under "Your Templates" at the top of the template picker.`,
+      );
+    } catch (error) {
+      alert(
+        `Could not save the template: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   };
 
   return (

@@ -411,5 +411,75 @@ Compassionate design with warm colors, inspiring imagery, clear calls to action,
 - Playlist song request form
 - Live streaming information for virtual guests
 Romantic design with soft colors, elegant typography, beautiful imagery, personal touches.`
+  },
+
+  // ── Expanded library (2026-07-11) — richer, more prescriptive
+  // prompts modeled on the detailed style that produces the best
+  // real-world results (daycare/teacher test sessions). Existing
+  // entries above are untouched per the header warning.
+
+  // Family & Education
+  kidsDaycare: {
+    name: "Daycare / Childcare Center",
+    category: "Family & Education",
+    prompt: `Create a complete, polished website for a small family-run daycare called Little Sprouts. Warm, nurturing, professional — appeals to parents, never childish or cartoonish. Include: hero with trust-building headline and enrollment CTA; About Us with the owner story and credentials; Programs section (infants, toddlers, pre-K) as rounded cards with age ranges and daily focus; A Day at Little Sprouts visual timeline (arrival, circle time, outdoor play, lunch, nap, art); staff introductions with warm bios; safety and licensing badges section; weekly sample menu table; parent testimonials; tuition and enrollment steps; FAQ accordion for parents; contact section with hours, address, and an inquiry form (parent name, child age, desired start date, message). Soft sage/butter/blush palette on cream, rounded cards, gentle shadows, subtle animations, fully responsive, real content throughout.`
+  },
+  teacherClassroom: {
+    name: "Teacher / Classroom Hub",
+    category: "Family & Education",
+    prompt: `Create a complete website for an elementary school teacher: a classroom communication hub for parents and students. Warm, trustworthy, organized. Include: sticky nav with smooth scrolling; cheerful hero with two CTAs; About the Teacher with bio, philosophy, and fun facts; Daily Schedule visual timeline; This Week in Class with Monday-Friday activities; Curriculum Overview cards for reading, math, science, social studies; kid-friendly Classroom Rules with icons; Homework and Resources cards; Announcements with three sample updates; parent FAQ accordion; classroom gallery with tasteful placeholders; contact form (parent name, email, student name, subject, message); footer with office hours and email. Bright but not garish, rounded cards, friendly typography, premium and intentional, real teacher-appropriate content.`
+  },
+  tutoringCenter: {
+    name: "Tutoring / Learning Center",
+    category: "Family & Education",
+    prompt: `Create a professional website for a local tutoring center covering K-12 math, reading, and test prep. Trustworthy, results-focused, parent-friendly. Include: hero with outcome-driven headline and free-assessment CTA; How It Works in three steps; Subjects grid with grade ranges; Meet the Tutors cards with credentials; Results section with improvement stats and parent testimonials; flexible Pricing plans (per-session, monthly, intensive); an FAQ accordion; scheduling contact form (student grade, subject, availability). Clean academic palette (deep blue, warm accent), generous whitespace, card-based layout, subtle motion, fully responsive, realistic content.`
+  },
+
+  // Local Business
+  localBakery: {
+    name: "Bakery / Café",
+    category: "Local Business",
+    prompt: `Create a mouth-watering website for an artisan neighborhood bakery. Warm, inviting, premium-rustic. Include: hero with signature product photography placeholder and visit-us CTA; Our Story section with baker bio; Menu grid grouped by breads, pastries, cakes, coffee with real item names and prices; Daily Specials strip; custom cake ordering section with an inquiry form (occasion, date, servings, flavor notes); gallery grid; testimonials; visit section with hours, address, parking notes, and an embedded-map placeholder; newsletter signup CTA. Cream and espresso palette with a warm accent, soft textures, appetizing typography, hover states on menu cards, fully responsive.`
+  },
+  autoRepair: {
+    name: "Auto Repair Shop",
+    category: "Local Business",
+    prompt: `Create a trust-first website for a family-owned auto repair shop. Honest, competent, no-nonsense but friendly. Include: hero with plain-language value promise and call-now plus book-online CTAs; Services grid (oil and fluids, brakes, diagnostics, tires, AC, inspections) with what-is-included detail; Why Drivers Trust Us with certifications, warranty, and straight-talk pricing policy; simple three-step How It Works; mechanics introduced by first name with years of experience; reviews section; service-request form (vehicle year/make/model, issue description, preferred date); footer with hours, address, phone. Steel blue and safety-orange accents on clean white, bold readable type, mobile-first for roadside searches.`
+  },
+  petServices: {
+    name: "Pet Grooming / Services",
+    category: "Local Business",
+    prompt: `Create a delightful website for a pet grooming salon and daycare. Playful but polished — pet-lover warmth with professional trust. Include: hero with happy-pet imagery placeholder and book-appointment CTA; Services and pricing cards (bath and brush, full groom, nail trim, daycare day passes) by dog size; How Your Visit Works timeline; groomer team bios with their own pets; before/after gallery grid; safety and certification badges; wagging-tail testimonials; booking form (pet name, breed, size, service, preferred date); FAQ accordion (vaccines, matting, anxious pets); footer with hours and location. Fresh teal and warm coral palette, rounded everything, paw-print accents used sparingly, fully responsive.`
+  },
+
+  // Health & Wellness
+  personalTrainer: {
+    name: "Personal Trainer / Coach",
+    category: "Health & Wellness",
+    prompt: `Create a high-energy but professional website for an independent personal trainer. Motivating, credible, results-oriented. Include: hero with transformation-focused headline and free-consult CTA; About with certifications and training philosophy; Training Options cards (1-on-1, small group, online coaching, nutrition add-on) with pricing; Client Results section with realistic before/after stats and testimonials; a sample Week of Training timeline; Instagram-style gallery strip; lead-capture form (goals, experience level, availability); FAQ accordion; strong CTA banner. Charcoal base with electric accent color, bold condensed headings, athletic photography placeholders, micro-interactions on cards, fully responsive.`
+  },
+  yogaStudio: {
+    name: "Yoga / Wellness Studio",
+    category: "Health & Wellness",
+    prompt: `Create a serene, premium website for a neighborhood yoga and wellness studio. Calm, welcoming, unhurried. Include: hero with breathing-room layout and begin-your-practice CTA; class schedule as a clean weekly grid (vinyasa, restorative, beginners, prenatal) with instructor names and times; Instructors section with warm bios; New Student path with intro-offer pricing card; Workshops and Events cards; studio gallery; testimonials presented gently; membership and drop-in pricing; contact section with schedule-a-visit form; footer with address and socials. Soft sand and sage palette, elegant thin typography, generous whitespace, slow subtle transitions, fully responsive, no cliché spiritual kitsch.`
+  },
+
+  // Professional Services
+  lawFirm: {
+    name: "Law Firm / Attorney",
+    category: "Professional Services",
+    prompt: `Create an authoritative, client-friendly website for a small law practice. Serious, precise, reassuring — approachable without losing gravitas. Include: hero with clear practice statement and free-consultation CTA; Practice Areas grid (family law, estate planning, small business, real estate) each with plain-language descriptions; attorney profiles with credentials and bar admissions; Our Approach section translating legalese into client benefits; case-results or client testimonials handled tastefully; a What to Expect timeline for first-time clients; consultation request form (matter type, brief description, preferred contact); footer with office hours, address, and required disclaimers. Deep navy and parchment palette, serif display headings with clean body text, restrained animation, impeccable spacing, fully responsive.`
+  },
+
+  // Community & Culture
+  nonprofitCharity: {
+    name: "Nonprofit / Charity",
+    category: "Community",
+    prompt: `Create an inspiring website for a local nonprofit focused on community food security. Hopeful, transparent, action-driving. Include: hero with mission statement and prominent donate plus volunteer CTAs; impact stats band (meals served, families helped, volunteers) with animated counters; Our Programs cards; How Your Donation Helps breakdown with concrete examples per giving level; volunteer opportunities grid with time commitments; upcoming events list; stories section with two beneficiary narratives told respectfully; transparency section (financials summary, board); newsletter signup; donation CTA banner. Warm optimistic palette, human photography placeholders, accessible high-contrast text, credibility-first design, fully responsive.`
+  },
+  musicianBand: {
+    name: "Musician / Band",
+    category: "Entertainment",
+    prompt: `Create an electric one-page website for an independent band. Bold, atmospheric, tour-ready. Include: full-bleed hero with band name treatment and listen-now CTA; latest release section with streaming-platform link buttons; tour dates table (date, city, venue, tickets button) with sold-out states; About the Band with member cards; music video or photo gallery grid; press quotes strip; merch teaser cards; mailing list signup with incentive; booking contact form; footer with social links. Dark theatrical palette with one neon accent, oversized typography, texture and grain, hover glow effects, fully responsive without losing drama on mobile.`
   }
 };

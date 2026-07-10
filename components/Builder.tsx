@@ -61,6 +61,8 @@ import {
   startNewProject,
 } from "@/lib/projects/actions";
 import { loadOpenrouterKey } from "@/lib/integrations/actions";
+import { listUserTemplates } from "@/lib/templates/actions";
+import { useTemplatesStore } from "@/lib/store/templates-store";
 
 /** Throttle interval (ms) for streaming UI updates during generation. */
 const UPDATE_INTERVAL = 150;
@@ -90,6 +92,8 @@ function Builder() {
   const setChatHistory = useChatStore((s) => s.setChatHistory);
   const chatMessage = useChatStore((s) => s.chatMessage);
   const setChatMessage = useChatStore((s) => s.setChatMessage);
+
+  const setUserTemplates = useTemplatesStore((s) => s.setUserTemplates);
 
   // UI Store — every modal/panel owns its own visibility selector now;
   // Builder only records the OpenRouter probe result.
@@ -174,6 +178,14 @@ function Builder() {
           console.error("Key restore failed:", error);
         });
     }
+
+    // Account templates are the source of truth; the localStorage
+    // cache is replaced at every sign-in (2026-07-11).
+    listUserTemplates()
+      .then((templates) => setUserTemplates(templates))
+      .catch((error: unknown) =>
+        console.error("Template load failed:", error),
+      );
 
     loadWorkspace()
       .then((workspace) => {

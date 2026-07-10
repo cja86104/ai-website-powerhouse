@@ -24,6 +24,7 @@ import {
   useTemplatesStore,
   type UserTemplate,
 } from "@/lib/store/templates-store";
+import { deleteUserTemplate } from "@/lib/templates/actions";
 
 interface CategorizedTemplate extends PromptTemplate {
   key: string;
@@ -66,6 +67,10 @@ export const TemplatePicker = memo(function TemplatePicker() {
     event.stopPropagation();
     if (!confirm("Delete this template?")) return;
     removeUserTemplate(templateId);
+    // Account is the source of truth (2026-07-11); fire-and-forget.
+    deleteUserTemplate(templateId).catch((error: unknown) =>
+      console.error("Template delete failed:", error),
+    );
   };
 
   return (
@@ -73,25 +78,6 @@ export const TemplatePicker = memo(function TemplatePicker() {
       <h3 className="text-lg font-semibold text-purple-100 mb-3">
         Professional Templates
       </h3>
-      {Object.entries(templatesByCategory).map(([category, templates]) => (
-        <div key={category} className="mb-4">
-          <h4 className="text-sm font-semibold text-purple-300 mb-2 uppercase tracking-wide">
-            {category}
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {templates.map((template) => (
-              <button
-                key={template.key}
-                onClick={() => handleSelectBuiltin(template.key)}
-                className="px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 text-purple-200 rounded-lg transition-all text-left text-sm"
-              >
-                {template.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-
       {userTemplates.length > 0 && (
         <div className="mt-4 pt-4 border-t border-purple-500/30">
           <h4 className="text-sm font-semibold text-green-300 mb-2 uppercase tracking-wide">
@@ -118,6 +104,25 @@ export const TemplatePicker = memo(function TemplatePicker() {
           </div>
         </div>
       )}
+      {Object.entries(templatesByCategory).map(([category, templates]) => (
+        <div key={category} className="mb-4">
+          <h4 className="text-sm font-semibold text-purple-300 mb-2 uppercase tracking-wide">
+            {category}
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {templates.map((template) => (
+              <button
+                key={template.key}
+                onClick={() => handleSelectBuiltin(template.key)}
+                className="px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 text-purple-200 rounded-lg transition-all text-left text-sm"
+              >
+                {template.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
     </div>
   );
 });
