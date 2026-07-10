@@ -64,7 +64,7 @@ import {
   persistGeneration,
   startNewProject,
 } from "@/lib/projects/actions";
-import { loadOpenrouterKey } from "@/lib/integrations/actions";
+import { loadOpenrouterProfile } from "@/lib/integrations/actions";
 import { listUserTemplates } from "@/lib/templates/actions";
 import { useTemplatesStore } from "@/lib/store/templates-store";
 
@@ -135,8 +135,15 @@ function Builder({ initialProjectId }: BuilderProps) {
   const openrouterKey = useSettingsStore((s) => s.openrouterKey);
   const setOpenrouterKey = useSettingsStore((s) => s.setOpenrouterKey);
   const openrouterModel = useSettingsStore((s) => s.openrouterModel);
+  const setOpenrouterModel = useSettingsStore((s) => s.setOpenrouterModel);
   const openrouterCustomSlug = useSettingsStore((s) => s.openrouterCustomSlug);
+  const setOpenrouterCustomSlug = useSettingsStore(
+    (s) => s.setOpenrouterCustomSlug,
+  );
   const openrouterMaxTokens = useSettingsStore((s) => s.openrouterMaxTokens);
+  const setOpenrouterMaxTokens = useSettingsStore(
+    (s) => s.setOpenrouterMaxTokens,
+  );
   const numCtx = useSettingsStore((s) => s.numCtx);
   const temperature = useSettingsStore((s) => s.temperature);
   const topP = useSettingsStore((s) => s.topP);
@@ -191,20 +198,33 @@ function Builder({ initialProjectId }: BuilderProps) {
       )
       .catch(() => setOpenrouterServerAvailable(false));
 
-    // Restore the account-stored BYOK key when this browser has none
-    // (W5 UX). The mount-time closure value is post-hydration thanks
-    // to HydrationGate, so "empty here" means "empty locally".
-    if (openrouterKey.trim().length === 0) {
-      loadOpenrouterKey()
-        .then((storedKey) => {
-          if (storedKey !== null) {
-            setOpenrouterKey(storedKey);
-          }
-        })
-        .catch((error: unknown) => {
-          console.error("Key restore failed:", error);
-        });
-    }
+    // Restore the account-stored OpenRouter profile (W5 UX key;
+    // 2026-07-12 model/slug/tokens). The ACCOUNT is the source of
+    // truth for model, custom slug, and max tokens — the model a user
+    // generated with is the model their next session edits with, on
+    // any browser. The key only fills in when this browser has none
+    // (mount-time closure is post-hydration thanks to HydrationGate,
+    // so "empty here" means "empty locally") — never clobber a key
+    // the user just typed.
+    loadOpenrouterProfile()
+      .then((profile) => {
+        if (profile === null) return;
+        if (profile.key !== null && openrouterKey.trim().length === 0) {
+          setOpenrouterKey(profile.key);
+        }
+        if (profile.model !== null && profile.model.length > 0) {
+          setOpenrouterModel(profile.model);
+        }
+        if (profile.customSlug !== null) {
+          setOpenrouterCustomSlug(profile.customSlug);
+        }
+        if (profile.maxTokens !== null && profile.maxTokens >= 1024) {
+          setOpenrouterMaxTokens(profile.maxTokens);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Settings restore failed:", error);
+      });
 
     // Account templates are the source of truth; the localStorage
     // cache is replaced at every sign-in (2026-07-11).

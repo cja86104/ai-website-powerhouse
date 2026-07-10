@@ -27,7 +27,10 @@ import {
 } from "@/lib/models";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useUiStore } from "@/lib/store/ui-store";
-import { saveOpenrouterKey } from "@/lib/integrations/actions";
+import {
+  saveOpenrouterKey,
+  saveOpenrouterPrefs,
+} from "@/lib/integrations/actions";
 
 export const OpenRouterSection = memo(function OpenRouterSection() {
   const openrouterKey = useSettingsStore((s) => s.openrouterKey);
@@ -46,21 +49,40 @@ export const OpenRouterSection = memo(function OpenRouterSection() {
     (s) => s.openrouterServerAvailable,
   );
 
+  // Model/slug/token changes sync to the ACCOUNT fire-and-forget
+  // (2026-07-12 UX): the model a user generated with must be the
+  // model their next session edits with, on any browser. Local
+  // persistence still happens instantly on change; a failed account
+  // write only logs.
+  const syncPrefs = useCallback(
+    (prefs: { model: string; customSlug: string; maxTokens: number }) => {
+      saveOpenrouterPrefs(prefs).catch((error: unknown) => {
+        console.error("Settings sync failed:", error);
+      });
+    },
+    [],
+  );
+
   // Save persists the key to the ACCOUNT (encrypted at rest) so it
-  // follows the user across browsers (W5 UX). Model/token settings
-  // still persist locally on change, as before.
+  // follows the user across browsers (W5 UX), plus the current
+  // preferences as a belt-and-braces sync.
   const saveOpenrouterSettings = useCallback(async () => {
     try {
       await saveOpenrouterKey(openrouterKey);
+      await saveOpenrouterPrefs({
+        model: openrouterModel,
+        customSlug: openrouterCustomSlug,
+        maxTokens: openrouterMaxTokens,
+      });
       alert("OpenRouter settings saved to your account!");
     } catch (error) {
       alert(
-        `Could not save the key to your account: ${
+        `Could not save to your account: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
     }
-  }, [openrouterKey]);
+  }, [openrouterKey, openrouterModel, openrouterCustomSlug, openrouterMaxTokens]);
 
   return (
     <div className="bg-gradient-to-br from-cyan-500/10 to-transparent rounded-xl p-6 border border-cyan-500/20">
@@ -94,7 +116,14 @@ export const OpenRouterSection = memo(function OpenRouterSection() {
           </label>
           <select
             value={openrouterModel}
-            onChange={(e) => setOpenrouterModel(e.target.value)}
+            onChange={(e) => {
+              setOpenrouterModel(e.target.value);
+              syncPrefs({
+                model: e.target.value,
+                customSlug: openrouterCustomSlug,
+                maxTokens: openrouterMaxTokens,
+              });
+            }}
             className="w-full px-4 py-2 bg-[#1a1a2e] border border-cyan-500/30 rounded-lg text-cyan-100 focus:outline-none focus:border-cyan-500/50"
           >
             {CURATED_OPENROUTER_MODELS.map((m) => (
@@ -117,6 +146,13 @@ export const OpenRouterSection = memo(function OpenRouterSection() {
               type="text"
               value={openrouterCustomSlug}
               onChange={(e) => setOpenrouterCustomSlug(e.target.value)}
+              onBlur={() =>
+                syncPrefs({
+                  model: openrouterModel,
+                  customSlug: openrouterCustomSlug,
+                  maxTokens: openrouterMaxTokens,
+                })
+              }
               placeholder="provider/model-name"
               className="w-full px-4 py-2 bg-[#1a1a2e] border border-cyan-500/30 rounded-lg text-cyan-100 placeholder-cyan-400/50 focus:outline-none focus:border-cyan-500/50"
             />
@@ -133,6 +169,13 @@ export const OpenRouterSection = memo(function OpenRouterSection() {
             step="512"
             value={openrouterMaxTokens}
             onChange={(e) => setOpenrouterMaxTokens(parseInt(e.target.value, 10))}
+            onPointerUp={() =>
+              syncPrefs({
+                model: openrouterModel,
+                customSlug: openrouterCustomSlug,
+                maxTokens: openrouterMaxTokens,
+              })
+            }
             className="w-full"
           />
         </div>

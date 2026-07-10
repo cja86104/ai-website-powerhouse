@@ -91,7 +91,10 @@ export const useSettingsStore = create<SettingsState>()(
       setOpenrouterModel: (value) => set({ openrouterModel: value }),
       openrouterCustomSlug: "",
       setOpenrouterCustomSlug: (value) => set({ openrouterCustomSlug: value }),
-      openrouterMaxTokens: 16000,
+      // 45000 default (2026-07-12, user-tested): 16000 truncated large
+      // sites badly; even 60000-token runs cost <$0.03 on typical
+      // OpenRouter models, so a generous ceiling is the right default.
+      openrouterMaxTokens: 45000,
       setOpenrouterMaxTokens: (value) => set({ openrouterMaxTokens: value }),
 
       numCtx: 32768,
@@ -107,7 +110,18 @@ export const useSettingsStore = create<SettingsState>()(
       name: "aiwp-settings-v1",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
-      version: 1,
+      version: 2,
+      // v1 -> v2 (2026-07-12): the old 16000 max-tokens default was
+      // far too low. Users who never moved the slider (still exactly
+      // 16000) are lifted to the new 45000 default; any deliberately
+      // chosen value is preserved.
+      migrate: (persisted, version) => {
+        const state = persisted as SettingsPersistedSlice;
+        if (version < 2 && state.openrouterMaxTokens === 16000) {
+          return { ...state, openrouterMaxTokens: 45000 };
+        }
+        return state;
+      },
       partialize: (state): SettingsPersistedSlice => ({
         aiProvider: state.aiProvider,
         ollamaUrl: state.ollamaUrl,
