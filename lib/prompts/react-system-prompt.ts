@@ -61,6 +61,7 @@ Your FIRST emitted file must be this exact package.json — emit it verbatim, do
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
+    "esbuild-wasm": "^0.21.5",
     "vite": "^5.4.0"
   }
 }

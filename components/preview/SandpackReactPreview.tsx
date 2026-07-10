@@ -30,13 +30,50 @@ import {
 } from "@codesandbox/sandpack-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
 
+/**
+ * Sandpack's runtime executes Vite IN THE BROWSER, where native
+ * esbuild cannot run — Vite needs the WebAssembly build. Projects
+ * scaffolded before 2026-07-12 pin vite without `esbuild-wasm`, which
+ * makes the in-browser dev server die with "Cannot find module
+ * 'esbuild-wasm'". This patches the dependency into the PREVIEW's
+ * copy of package.json only — the saved project files are untouched
+ * (a real `npm run dev` neither needs nor misses it; new scaffolds
+ * include it outright).
+ */
+function withEsbuildWasm(packageJson: string): string {
+  try {
+    const parsed = JSON.parse(packageJson) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    if (
+      parsed.devDependencies?.["esbuild-wasm"] !== undefined ||
+      parsed.dependencies?.["esbuild-wasm"] !== undefined
+    ) {
+      return packageJson;
+    }
+    parsed.devDependencies = {
+      ...parsed.devDependencies,
+      "esbuild-wasm": "^0.21.5",
+    };
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    // Unparseable package.json — leave it for Sandpack's own overlay
+    // to explain rather than masking the real problem here.
+    return packageJson;
+  }
+}
+
 /** Sandpack wants absolute-style paths; our store keeps them relative. */
 function toSandpackFiles(
   files: { name: string; content: string }[],
 ): Record<string, { code: string }> {
   const map: Record<string, { code: string }> = {};
   for (const file of files) {
-    map[`/${file.name}`] = { code: file.content };
+    map[`/${file.name}`] =
+      file.name === "package.json"
+        ? { code: withEsbuildWasm(file.content) }
+        : { code: file.content };
   }
   return map;
 }
