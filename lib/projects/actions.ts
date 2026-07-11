@@ -24,6 +24,10 @@ import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import type { GeneratedFile } from "@/lib/generation/types";
 import { serializeProjectFiles } from "@/lib/generation/project-parser";
+import {
+  deriveProjectName,
+  isDefaultProjectName,
+} from "@/lib/projects/derive-name";
 
 /** Frameworks the V1 UI exposes (schema also reserves 'next' for LATER+). */
 export type ProjectFramework = "react-vite" | "html";
@@ -439,6 +443,33 @@ export async function persistGeneration(
     }
   }
 
+  // Auto-name (2026-07-12): the first generation names the project
+  // from its prompt, but ONLY while the project still carries a
+  // machine default — a user-chosen name is never overwritten.
+  // Best-effort: naming must not fail the save.
+  if (input.kind === "initial") {
+    const derived = deriveProjectName(input.prompt);
+    if (derived !== null) {
+      const { data: projectRow } = await supabase
+        .from("projects")
+        .select("name")
+        .eq("id", input.projectId)
+        .single();
+      if (
+        projectRow !== null &&
+        isDefaultProjectName(projectRow.name as string)
+      ) {
+        const { error: nameError } = await supabase
+          .from("projects")
+          .update({ name: derived })
+          .eq("id", input.projectId);
+        if (nameError !== null) {
+          console.error("Auto-name failed:", nameError.message);
+        }
+      }
+    }
+  }
+
   return generationId;
 }
 
@@ -598,4 +629,29 @@ export async function forkFromGeneration(
   }
 
   return newProjectId;
+}
+
+/** Rename a project (2026-07-12 UX). RLS scopes the update to the owner. */
+export async function renameProject(
+  projectId: string,
+  name: string,
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("Sign in to rename projects.");
+  }
+  const trimmed = name.trim();
+  if (trimmed.length === 0 || trimmed.length > 80) {
+    throw new Error("Project names must be 1-80 characters.");
+  }
+  const { error } = await supabase
+    .from("projects")
+    .update({ name: trimmed })
+    .eq("id", projectId);
+  if (error !== null) {
+    throw new Error(`Rename failed: ${error.message}`);
+  }
 }
