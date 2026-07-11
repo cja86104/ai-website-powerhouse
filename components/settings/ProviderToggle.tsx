@@ -47,11 +47,21 @@ export const ProviderToggle = memo(function ProviderToggle() {
           Cloud (OpenRouter)
         </button>
       </div>
-      <p className="text-sm text-cyan-300/70 mt-3">
-        {aiProvider === "ollama"
-          ? "Generation uses your local Ollama server (configured below)."
-          : "Generation uses OpenRouter cloud models (configured below)."}
-      </p>
+      {/* The note sits under WHICHEVER button is active (2026-07-12
+          user feedback: it always sat left, under Ollama, even when
+          Cloud was selected). */}
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <p className="text-sm text-cyan-300/70">
+          {aiProvider === "ollama"
+            ? "Generation uses your local Ollama server (configured below)."
+            : ""}
+        </p>
+        <p className="text-sm text-cyan-300/70">
+          {aiProvider === "openrouter"
+            ? "Generation uses OpenRouter cloud models (configured below)."
+            : ""}
+        </p>
+      </div>
     </div>
   );
 });
