@@ -52,6 +52,7 @@ import {
   findForbiddenImports,
   forbiddenImportWarning,
 } from "@/lib/generation/import-validator";
+import { renumberImageSlots } from "@/lib/generation/slot-renumber";
 import type { GeneratedFile } from "@/lib/generation/types";
 import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
@@ -532,6 +533,9 @@ function Builder({ initialProjectId }: BuilderProps) {
             files = ensureReactScaffold(files);
             warnOnForbiddenImports(files);
           }
+          // Site-wide unique spot numbers, enforced client-side
+          // (2026-07-12 — models number per component).
+          files = renumberImageSlots(files);
           setGeneratedFiles(files);
           if (files.length > 0) {
             setSelectedFile(files[0]);
@@ -719,10 +723,12 @@ function Builder({ initialProjectId }: BuilderProps) {
             // (tolerantly unfenced). Merge it over the scoped file and
             // rebuild the raw buffer from the full set.
             const updatedContent = extractScopedFileContent(fullText);
-            files = generatedFiles.map((f) =>
-              f.name === scopedFile.name
-                ? { ...f, content: updatedContent }
-                : f,
+            files = renumberImageSlots(
+              generatedFiles.map((f) =>
+                f.name === scopedFile.name
+                  ? { ...f, content: updatedContent }
+                  : f,
+              ),
             );
             setGeneratedCode(joinFilesForFramework(files, framework));
             assistantMessage = {
@@ -740,25 +746,39 @@ function Builder({ initialProjectId }: BuilderProps) {
             const cleanedCode = fullText.trim();
             const changed = parseProjectFiles(cleanedCode);
             const deletedPaths = parseDeletedPaths(cleanedCode);
+            let mergedNoOp = false;
             if (changed.length === 0 && deletedPaths.length === 0) {
               files = parseGeneratedFiles(cleanedCode);
             } else {
               files = mergeProjectFiles(generatedFiles, changed, deletedPaths);
+              // No-op detection (2026-07-12 user report: "it said
+              // updated successfully AND DID NOTHING"): if every
+              // returned file is byte-identical to what we already
+              // had, say so instead of claiming success.
+              mergedNoOp =
+                deletedPaths.length === 0 &&
+                changed.every((f) =>
+                  generatedFiles.some(
+                    (g) => g.name === f.name && g.content === f.content,
+                  ),
+                );
             }
             // Backstop (W5 Fri): inject the pinned scaffold files if
             // the model forgot them — ZIPs must always be runnable.
-            files = ensureReactScaffold(files);
+            files = renumberImageSlots(ensureReactScaffold(files));
             // The raw buffer must reflect the FULL merged project so
             // the next modify round sees the real current state.
             setGeneratedCode(joinFilesForFramework(files, framework));
             assistantMessage = {
               role: "assistant",
-              content: "Website updated successfully!",
+              content: mergedNoOp
+                ? "The model returned the files unchanged — nothing was modified. Try rephrasing (say what should be different and where), or pick the file in the dropdown above and ask again."
+                : "Website updated successfully!",
             };
           } else {
             setGeneratedCode(fullText);
             const cleanedCode = fullText.trim();
-            files = parseGeneratedFiles(cleanedCode);
+            files = renumberImageSlots(parseGeneratedFiles(cleanedCode));
             assistantMessage = {
               role: "assistant",
               content: "Website updated successfully!",

@@ -15,8 +15,6 @@ import { Sliders } from "lucide-react";
 import { useSettingsStore } from "@/lib/store/settings-store";
 
 export const SamplingParams = memo(function SamplingParams() {
-  const numCtx = useSettingsStore((s) => s.numCtx);
-  const setNumCtx = useSettingsStore((s) => s.setNumCtx);
   const temperature = useSettingsStore((s) => s.temperature);
   const setTemperature = useSettingsStore((s) => s.setTemperature);
   const topP = useSettingsStore((s) => s.topP);
@@ -31,20 +29,6 @@ export const SamplingParams = memo(function SamplingParams() {
         Model Parameters
       </h3>
       <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-purple-200 mb-2">
-            Context Length: {numCtx}
-          </label>
-          <input
-            type="range"
-            min="2048"
-            max="32768"
-            step="2048"
-            value={numCtx}
-            onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
-            className="w-full"
-          />
-        </div>
         <div>
           <label className="block text-sm font-medium text-purple-200 mb-2">
             Temperature: {temperature}

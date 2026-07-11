@@ -77,6 +77,9 @@ export const ChipRow = memo(function ChipRow() {
       >
         <Cloud className="w-3 h-3" />
         {providerLabel}
+        <span className="opacity-60 underline decoration-dotted underline-offset-2">
+          change
+        </span>
       </button>
     </>
   );

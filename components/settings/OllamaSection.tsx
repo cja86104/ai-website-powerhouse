@@ -30,6 +30,12 @@ import { useSettingsStore } from "@/lib/store/settings-store";
 export const OllamaSection = memo(function OllamaSection() {
   const ollamaUrl = useSettingsStore((s) => s.ollamaUrl);
   const setOllamaUrl = useSettingsStore((s) => s.setOllamaUrl);
+  // Context length is an OLLAMA parameter (num_ctx) — it lived in the
+  // shared Model Parameters card, where it looked like the control
+  // for OpenRouter output tokens (that slider is in the OpenRouter
+  // card). Moved here 2026-07-12 per user feedback.
+  const numCtx = useSettingsStore((s) => s.numCtx);
+  const setNumCtx = useSettingsStore((s) => s.setNumCtx);
 
   /**
    * Best-effort connectivity probe. Mirrors the legacy
@@ -73,6 +79,20 @@ export const OllamaSection = memo(function OllamaSection() {
             onChange={(e) => handleUrlChange(e.target.value)}
             placeholder="http://localhost:11434"
             className="w-full px-4 py-2 bg-[#1a1a2e] border border-orange-500/30 rounded-lg text-orange-100 placeholder-orange-400/50 focus:outline-none focus:border-orange-500/50"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-orange-200 mb-2">
+            Context Length: {numCtx}
+          </label>
+          <input
+            type="range"
+            min="2048"
+            max="32768"
+            step="2048"
+            value={numCtx}
+            onChange={(e) => setNumCtx(parseInt(e.target.value, 10))}
+            className="w-full"
           />
         </div>
       </div>

@@ -68,6 +68,12 @@ export function findForbiddenImports(
 
   for (const file of files) {
     if (!/\.(jsx|js)$/.test(file.name)) continue;
+    // Config files legitimately import build tooling (vite,
+    // @vitejs/plugin-react) — scanning them produced false warnings
+    // on every clean generation (2026-07-12 user report).
+    if (/(^|\/)(vite|tailwind|postcss)\.config\.(js|ts|mjs)$/.test(file.name)) {
+      continue;
+    }
     for (const pattern of IMPORT_PATTERNS) {
       pattern.lastIndex = 0;
       let match: RegExpExecArray | null;

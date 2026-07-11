@@ -94,10 +94,8 @@ export const ChatInterface = memo(function ChatInterface({
         )}
       </div>
 
-      <MessageList />
-
       {hasGeneratedCode && (
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-3">
           <FileCode2 className="w-4 h-4 text-purple-300 shrink-0" />
           <select
             value={scopedFilePath ?? ""}
@@ -116,6 +114,8 @@ export const ChatInterface = memo(function ChatInterface({
           </select>
         </div>
       )}
+
+      <MessageList />
 
       {hasGeneratedCode && <MessageInput onChatSubmit={onChatSubmit} />}
     </div>

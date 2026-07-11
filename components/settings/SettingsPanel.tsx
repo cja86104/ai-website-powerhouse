@@ -36,7 +36,7 @@ export const SettingsPanel = memo(function SettingsPanel() {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center p-4">
       <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-orange-500/30 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-orange-500/30 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-orange-500/30 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-orange-100">Settings</h2>
           <button
             onClick={() => setShowSettings(false)}
@@ -46,15 +46,15 @@ export const SettingsPanel = memo(function SettingsPanel() {
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-4 overflow-y-auto flex-1">
           <ProviderToggle />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <OllamaSection />
+            <OpenRouterSection />
             <SamplingParams />
             <SupabaseSection />
             <GithubSection />
-            <OpenRouterSection />
           </div>
 
           <SystemStatusList />
