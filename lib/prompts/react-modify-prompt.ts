@@ -8,6 +8,8 @@
  * the per-generation file snapshots in project_files consistent.
  */
 
+import { IMAGE_SLOT_RULES } from "@/lib/prompts/image-slots";
+
 /** Options consumed by {@link buildReactModifyPrompt}. */
 export interface BuildReactModifyPromptOptions {
   /** The current project serialized in AIWP:FILE marker format. */
@@ -36,6 +38,8 @@ REQUIREMENTS:
 - Do not add npm dependencies; the package.json dependency set is fixed
 - Tailwind loads from the CDN script in index.html: never add tailwind.config or @tailwind directives, and use only standard built-in utility classes (or arbitrary values), never invented theme tokens
 - Keep every existing feature and file that the request does not remove
+
+${IMAGE_SLOT_RULES}
 
 CRITICAL OUTPUT RULES:
 - Return the COMPLETE updated project — EVERY file, including unchanged ones, in the same ===AIWP:FILE path="..."=== / ===AIWP:END=== marker format

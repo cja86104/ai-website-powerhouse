@@ -583,8 +583,14 @@ function Builder({ initialProjectId }: BuilderProps) {
     setGenerationStats,
   ]);
 
-  const handleChatModify = useCallback(async () => {
-    if (!chatMessage.trim() || !generatedCode) return;
+  // `messageOverride` (W spots, 2026-07-12): programmatic senders —
+  // the AssetsPanel Place button — pass the request text directly.
+  // Typed `unknown` because DOM handlers pass the click event when
+  // wired as onClick={onChatSubmit}; only a string is honored.
+  const handleChatModify = useCallback(async (messageOverride?: unknown) => {
+    const request =
+      typeof messageOverride === "string" ? messageOverride : chatMessage;
+    if (!request.trim() || !generatedCode) return;
 
     // Save current version to history before modifying
     setCodeHistory((prev) => [
@@ -598,7 +604,7 @@ function Builder({ initialProjectId }: BuilderProps) {
 
     const userMessage: ChatThreadMessage = {
       role: "user",
-      content: chatMessage,
+      content: request,
     };
     setChatHistory((prev) => [...prev, userMessage]);
     setChatMessage("");
@@ -617,7 +623,7 @@ function Builder({ initialProjectId }: BuilderProps) {
 
     // Outgoing request text carries the uploaded-image URLs; the
     // persisted user message (userMessage.content) stays clean.
-    const chatRequest = chatMessage + buildAssetsNote(assets);
+    const chatRequest = request + buildAssetsNote(assets);
     const modifyPrompt =
       scopedFile !== null
         ? buildScopedModifyPrompt({
@@ -802,6 +808,18 @@ function Builder({ initialProjectId }: BuilderProps) {
     setCodeHistory,
   ]);
 
+  // One-click photo placement (2026-07-12): the AssetsPanel turns a
+  // thumbnail + a spot number into a precise modify request against
+  // the data-aiwp-slot contract — no vocabulary needed from the user.
+  const handlePlaceImage = useCallback(
+    (asset: { name: string; url: string }, slot: number) => {
+      void handleChatModify(
+        `Put the image "${asset.name}" into image spot ${slot}: set the src (or background-image) of the element with data-aiwp-slot="${slot}" to exactly ${asset.url}, keeping the existing size, cropping, and layout classes. Change nothing else.`,
+      );
+    },
+    [handleChatModify],
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#2d1b3d] to-[#4a1942] text-gray-900">
       <DeployModal />
@@ -823,7 +841,7 @@ function Builder({ initialProjectId }: BuilderProps) {
 
             <HistoryPanel onRestore={handleRestoreGeneration} />
 
-            <AssetsPanel />
+            <AssetsPanel onPlaceImage={handlePlaceImage} />
 
             <ChatInterface onChatSubmit={handleChatModify} />
           </div>

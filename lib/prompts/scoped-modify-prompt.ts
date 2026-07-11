@@ -50,6 +50,7 @@ OUTPUT RULES — follow every one:
 4. Do NOT add explanations, comments about the change, or file markers.
 5. Keep everything in the file that the request does not ask you to change.
 6. If the request cannot be satisfied inside this one file, do your best within it — never touch other files.
+7. Keep every data-aiwp-slot attribute exactly as it is (invisible editor metadata). If the request asks to put an image in "spot N" or "box N", set the src (or background-image) of the element whose data-aiwp-slot equals N to the exact URL provided, keeping the existing layout classes.
 
 Return only the raw file content, starting with its first character.`;
 }

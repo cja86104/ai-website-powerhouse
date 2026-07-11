@@ -17,9 +17,12 @@
  *
  * Unit-test gap (acknowledged): the project's test framework is
  * scheduled for W11 (Vitest per Section 9 sprint plan). Byte-identical
- * preservation is enforced by direct source-to-source comparison
- * against the legacy template — see git history.
+ * preservation was enforced by direct source-to-source comparison
+ * against the legacy template until 2026-07-12, when the image-slot
+ * contract became the first deliberate deviation — see git history.
  */
+
+import { IMAGE_SLOT_RULES } from "@/lib/prompts/image-slots";
 
 /** Options consumed by {@link buildModifyPrompt}. */
 export interface BuildModifyPromptOptions {
@@ -62,6 +65,10 @@ QUALITY REQUIREMENTS:
 - Think: "How would a senior developer implement this?"
 - Add smooth transitions and animations for any new UI elements
 - Ensure the modification integrates seamlessly with existing design`;
+
+  modifyPrompt += `
+
+${IMAGE_SLOT_RULES}`;
 
   modifyPrompt += `
 

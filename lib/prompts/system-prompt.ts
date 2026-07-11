@@ -21,10 +21,13 @@
  * against the legacy template — see git history.
  */
 
+import { IMAGE_SLOT_RULES } from "@/lib/prompts/image-slots";
+
 /**
  * Construct the system message for the initial website generation:
- * the base elite-developer template followed by the final reminder
- * about output bracketing.
+ * the base elite-developer template, the image-slot contract
+ * (2026-07-12 — first deliberate deviation from the legacy bytes),
+ * and the final reminder about output bracketing.
  */
 export function buildSystemPrompt(): string {
   let systemPrompt = `You are an elite web developer with 15+ years of experience building production applications. Create a sophisticated, feature-rich, professional-grade website.
@@ -113,6 +116,10 @@ EXAMPLES OF GOING ABOVE AND BEYOND:
 THINK BIGGER:
 Ask yourself: "If this was my portfolio piece to show potential clients, would I be proud of it?"
 Add features that demonstrate technical skill and attention to detail.`;
+
+  systemPrompt += `
+
+${IMAGE_SLOT_RULES}`;
 
   systemPrompt += `
 

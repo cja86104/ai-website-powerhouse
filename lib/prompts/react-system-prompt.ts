@@ -19,6 +19,8 @@
  * owns the 'html' framework mode.
  */
 
+import { IMAGE_SLOT_RULES } from "@/lib/prompts/image-slots";
+
 /** Construct the system message for a React/Vite project generation. */
 export function buildReactSystemPrompt(): string {
   return `You are an elite React developer with 15+ years of experience building production applications. Create a sophisticated, feature-rich, professional-grade website as a complete Vite + React project.
@@ -79,6 +81,8 @@ TAILWIND RULES (this project uses the CDN, NOT the PostCSS pipeline):
 - Do NOT emit tailwind.config.js, tailwind.config.ts, or postcss.config.js — they do nothing here and will be removed
 - Do NOT put @tailwind base/components/utilities directives in any CSS file — Tailwind loads from the CDN script in index.html
 - Use ONLY standard built-in Tailwind utility classes; never invent theme tokens like bg-primary or text-brand — use concrete classes (bg-emerald-600, text-slate-800) or arbitrary values (bg-[#2d6a4f])
+
+${IMAGE_SLOT_RULES}
 
 QUALITY STANDARDS:
 - Think like you're building for a Fortune 500 client with a $50,000 budget

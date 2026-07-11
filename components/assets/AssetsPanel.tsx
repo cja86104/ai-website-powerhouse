@@ -13,7 +13,7 @@
  */
 
 import { memo, useCallback, useRef, useState } from "react";
-import { Copy, ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { Copy, Hash, ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import {
   deleteProjectAsset,
@@ -21,8 +21,20 @@ import {
   uploadProjectAsset,
 } from "@/lib/assets/client";
 
-export const AssetsPanel = memo(function AssetsPanel() {
+export interface AssetsPanelProps {
+  /**
+   * Sends a precise "put this image in spot N" modify request (the
+   * Builder owns the generation pipeline). See the numbered-spots
+   * contract in lib/prompts/image-slots.ts.
+   */
+  onPlaceImage: (asset: { name: string; url: string }, slot: number) => void;
+}
+
+export const AssetsPanel = memo(function AssetsPanel({
+  onPlaceImage,
+}: AssetsPanelProps) {
   const projectId = useGenerationStore((s) => s.projectId);
+  const generatedFiles = useGenerationStore((s) => s.generatedFiles);
   const assets = useGenerationStore((s) => s.assets);
   const setAssets = useGenerationStore((s) => s.setAssets);
   const [expanded, setExpanded] = useState(false);
@@ -93,6 +105,26 @@ export const AssetsPanel = memo(function AssetsPanel() {
     navigator.clipboard.writeText(url);
   }, []);
 
+  const handlePlace = useCallback(
+    (asset: { name: string; url: string }) => {
+      if (generatedFiles.length === 0) {
+        alert("Generate a website first — then you can place your images.");
+        return;
+      }
+      const answer = window.prompt(
+        'Which image spot number? (Click "Spots" above the preview to see the numbers on your site.)',
+      );
+      if (answer === null) return;
+      const slot = parseInt(answer.trim(), 10);
+      if (Number.isNaN(slot) || slot < 1) {
+        alert("Please enter a spot number like 3.");
+        return;
+      }
+      onPlaceImage(asset, slot);
+    },
+    [generatedFiles, onPlaceImage],
+  );
+
   if (projectId === null) return null;
 
   return (
@@ -117,7 +149,9 @@ export const AssetsPanel = memo(function AssetsPanel() {
         <div className="px-4 pb-4 space-y-3">
           <p className="text-xs text-cyan-200/60">
             Upload your own photos and logos — the AI will use them in
-            your website instead of placeholders.
+            your website instead of placeholders. To put one in an exact
+            place, click the # on it, then enter the spot number shown
+            by the preview&apos;s &quot;Spots&quot; button.
           </p>
           <input
             ref={fileInputRef}
@@ -157,6 +191,13 @@ export const AssetsPanel = memo(function AssetsPanel() {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handlePlace(asset)}
+                      title='Place in a numbered spot (turn on "Spots" above the preview to see the numbers)'
+                      className="p-1.5 rounded bg-violet-500/30 hover:bg-violet-500/50 text-violet-100"
+                    >
+                      <Hash className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => handleCopy(asset.url)}
                       title="Copy image URL"

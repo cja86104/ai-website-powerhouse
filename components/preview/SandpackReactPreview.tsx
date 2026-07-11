@@ -29,6 +29,8 @@ import {
   SandpackLayout,
 } from "@codesandbox/sandpack-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
+import { useUiStore } from "@/lib/store/ui-store";
+import { injectSlotBadges } from "@/lib/preview/slot-badges";
 
 /**
  * Files the PREVIEW must not override (2026-07-12, second fix for the
@@ -49,21 +51,29 @@ const PREVIEW_EXCLUDED_FILES = new Set(["package.json", "vite.config.js"]);
 /** Sandpack wants absolute-style paths; our store keeps them relative. */
 function toSandpackFiles(
   files: { name: string; content: string }[],
+  withSlotBadges: boolean,
 ): Record<string, { code: string }> {
   const map: Record<string, { code: string }> = {};
   for (const file of files) {
     if (PREVIEW_EXCLUDED_FILES.has(file.name)) continue;
-    map[`/${file.name}`] = { code: file.content };
+    // Numbered image-spot badges (2026-07-12): injected into the
+    // PREVIEW's copy of index.html only — saved files stay clean.
+    const code =
+      withSlotBadges && file.name === "index.html"
+        ? injectSlotBadges(file.content)
+        : file.content;
+    map[`/${file.name}`] = { code };
   }
   return map;
 }
 
 export const SandpackReactPreview = memo(function SandpackReactPreview() {
   const generatedFiles = useGenerationStore((s) => s.generatedFiles);
+  const showImageSlots = useUiStore((s) => s.showImageSlots);
 
   const files = useMemo(
-    () => toSandpackFiles(generatedFiles),
-    [generatedFiles],
+    () => toSandpackFiles(generatedFiles, showImageSlots),
+    [generatedFiles, showImageSlots],
   );
 
   if (generatedFiles.length === 0) {

@@ -29,6 +29,10 @@ export interface UiState {
   setShowDeployModal: (value: boolean) => void;
 
   // Preview pane
+  /** Preview-only numbered badges on image slots (2026-07-12). */
+  showImageSlots: boolean;
+  setShowImageSlots: (value: boolean) => void;
+
   previewMode: PreviewMode;
   setPreviewMode: (
     updater: PreviewMode | ((prev: PreviewMode) => PreviewMode),
@@ -60,6 +64,9 @@ export const useUiStore = create<UiState>()((set) => ({
   setShowGithubPanel: (value) => set({ showGithubPanel: value }),
   showDeployModal: false,
   setShowDeployModal: (value) => set({ showDeployModal: value }),
+
+  showImageSlots: false,
+  setShowImageSlots: (value) => set({ showImageSlots: value }),
 
   previewMode: "auto",
   setPreviewMode: (updater) =>

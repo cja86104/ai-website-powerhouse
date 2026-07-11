@@ -28,6 +28,7 @@ import { SandpackReactPreview } from "@/components/preview/SandpackReactPreview"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useUiStore } from "@/lib/store/ui-store";
 import { downloadFile } from "@/lib/utils/download";
+import { injectSlotBadges } from "@/lib/preview/slot-badges";
 import type { PreviewMode } from "@/lib/store/ui-store";
 
 /** Cycles Auto → Code → Live → Auto. */
@@ -43,6 +44,8 @@ export const PreviewPanel = memo(function PreviewPanel() {
   const framework = useGenerationStore((s) => s.framework);
   const previewMode = useUiStore((s) => s.previewMode);
   const setPreviewMode = useUiStore((s) => s.setPreviewMode);
+  const showImageSlots = useUiStore((s) => s.showImageSlots);
+  const setShowImageSlots = useUiStore((s) => s.setShowImageSlots);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const shouldShowLivePreview = useCallback((): boolean => {
@@ -107,10 +110,19 @@ export const PreviewPanel = memo(function PreviewPanel() {
   const previewContent = useMemo(() => {
     if (!selectedFile) return "";
     if (previewMode === "live" && shouldShowLivePreview()) {
-      return getCombinedPreviewContent();
+      const combined = getCombinedPreviewContent();
+      // Numbered image-spot badges (2026-07-12) — preview only; the
+      // saved/deployed files never contain the overlay script.
+      return showImageSlots ? injectSlotBadges(combined) : combined;
     }
     return selectedFile.content;
-  }, [selectedFile, previewMode, shouldShowLivePreview, getCombinedPreviewContent]);
+  }, [
+    selectedFile,
+    previewMode,
+    shouldShowLivePreview,
+    getCombinedPreviewContent,
+    showImageSlots,
+  ]);
 
   const handleTogglePreview = () => {
     setPreviewMode(nextPreviewMode);
@@ -134,6 +146,17 @@ export const PreviewPanel = memo(function PreviewPanel() {
               className="px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium"
             >
               {previewMode === "auto" ? "Auto" : previewMode === "code" ? "Code" : "Live"}
+            </button>
+            <button
+              onClick={() => setShowImageSlots(!showImageSlots)}
+              title="Show numbered badges on every image spot, so you can say 'put my photo in spot 3'"
+              className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                showImageSlots
+                  ? "bg-violet-500/40 text-violet-100"
+                  : "bg-violet-500/20 hover:bg-violet-500/30 text-violet-300"
+              }`}
+            >
+              Spots
             </button>
             <button
               onClick={handleDownloadFile}
