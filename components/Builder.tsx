@@ -887,7 +887,7 @@ function Builder({ initialProjectId }: BuilderProps) {
   const handlePlaceImage = useCallback(
     (asset: { name: string; url: string }, slot: number) => {
       void handleChatModify(
-        `Put the image "${asset.name}" into image spot ${slot}: set the src (or background-image) of the element with data-aiwp-slot="${slot}" to exactly ${asset.url}, keeping the existing size, cropping, and layout classes. Change nothing else.`,
+        `Put the image "${asset.name}" into image spot ${slot}: set the src (or background-image) of the element with data-aiwp-slot="${slot}" to exactly ${asset.url}. THE IMAGE MUST FIT INSIDE THAT ELEMENT'S EXISTING BOX: keep the container's current width, height, and layout classes exactly as they are, and make the image fill it (for an <img>, className "w-full h-full object-cover"; for a background, background-size cover). Never enlarge the container or change the page layout. Change nothing else.`,
       );
     },
     [handleChatModify],

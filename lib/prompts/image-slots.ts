@@ -19,4 +19,4 @@ export const IMAGE_SLOT_RULES = `IMAGE SLOTS (AIWP editor contract):
 - If an element shows a CSS background image, put the attribute on that element instead
 - Numbers are unique across the whole site; when modifying, keep every existing number unchanged and give NEW image elements the next unused numbers
 - These attributes are invisible editor metadata: never remove them and never show the numbers in visible text
-- When the user asks to put an image in "spot N" or "box N", set the src (or background-image) of the element whose data-aiwp-slot equals N to the exact image URL provided, keeping the existing size, cropping, and layout classes`;
+- When the user asks to put an image in "spot N" or "box N", set the src (or background-image) of the element whose data-aiwp-slot equals N to the exact image URL provided. The image must FIT INSIDE the element's existing box: keep the container's width/height/layout classes unchanged and make the image fill it (w-full h-full object-cover, or background-size cover) — never let a placed image enlarge its container or the page`;
