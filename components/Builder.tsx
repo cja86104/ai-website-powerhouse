@@ -145,6 +145,7 @@ function Builder({ initialProjectId }: BuilderProps) {
   const chatMessage = useChatStore((s) => s.chatMessage);
   const setChatMessage = useChatStore((s) => s.setChatMessage);
   const scopedFilePath = useChatStore((s) => s.scopedFilePath);
+  const setScopedFilePath = useChatStore((s) => s.setScopedFilePath);
 
   const setUserTemplates = useTemplatesStore((s) => s.setUserTemplates);
 
@@ -266,14 +267,19 @@ function Builder({ initialProjectId }: BuilderProps) {
         latestGenerationIdRef.current = workspace.latestGenerationId;
         setProjectId(workspace.projectId);
         setFramework(workspace.framework);
-        if (workspace.files.length > 0) {
-          setGeneratedFiles(workspace.files);
-          setGeneratedCode(workspace.generatedCode);
-          setSelectedFile(workspace.files[0]);
-        }
-        if (workspace.chatHistory.length > 0) {
-          setChatHistory(workspace.chatHistory);
-        }
+        // UNCONDITIONAL reset (2026-07-12 user-reported): the stores
+        // are singletons that survive client-side navigation, so an
+        // "only set when non-empty" load kept the PREVIOUS project's
+        // chat/files on screen whenever the opened project was empty.
+        // Whatever this project has — including nothing — is what
+        // the workspace shows.
+        setGeneratedFiles(workspace.files);
+        setGeneratedCode(workspace.generatedCode);
+        setSelectedFile(workspace.files.length > 0 ? workspace.files[0] : null);
+        setChatHistory(workspace.chatHistory);
+        setCodeHistory([]);
+        setGenerationStats(null);
+        setScopedFilePath(null);
         // Uploaded images ride along on every prompt — load them with
         // the workspace so the first Generate already knows about them.
         listProjectAssets(workspace.projectId)
@@ -387,6 +393,7 @@ function Builder({ initialProjectId }: BuilderProps) {
       setCodeHistory([]);
       setGenerationStats(null);
       setAssets([]);
+      setScopedFilePath(null);
     } catch (error) {
       console.error("New project failed:", error);
       alert(
@@ -406,6 +413,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setCodeHistory,
     setGenerationStats,
     setAssets,
+    setScopedFilePath,
   ]);
 
   // Open a historical version (W7 Wed). Loads that generation's file

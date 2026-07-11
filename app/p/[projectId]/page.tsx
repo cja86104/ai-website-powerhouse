@@ -13,5 +13,9 @@ export default async function ProjectPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  return <Builder initialProjectId={projectId} />;
+  // key: navigating /p/A -> /p/B reuses the same tree position, so
+  // without a key React keeps the Builder instance and its mount-time
+  // workspace load never re-runs (2026-07-12 user-reported stale-chat
+  // bug). The key forces a full remount per project.
+  return <Builder key={projectId} initialProjectId={projectId} />;
 }
