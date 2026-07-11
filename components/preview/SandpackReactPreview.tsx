@@ -30,7 +30,7 @@ import {
 } from "@codesandbox/sandpack-react";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import { useUiStore } from "@/lib/store/ui-store";
-import { injectSlotBadges } from "@/lib/preview/slot-badges";
+import { appendSlotBadges } from "@/lib/preview/slot-badges";
 
 /**
  * Files the PREVIEW must not override (2026-07-12, second fix for the
@@ -56,11 +56,14 @@ function toSandpackFiles(
   const map: Record<string, { code: string }> = {};
   for (const file of files) {
     if (PREVIEW_EXCLUDED_FILES.has(file.name)) continue;
-    // Numbered image-spot badges (2026-07-12): injected into the
-    // PREVIEW's copy of index.html only — saved files stay clean.
+    // Numbered image-spot badges (2026-07-12): appended to the
+    // PREVIEW's copy of the entry module — editing the entry forces a
+    // full reload so the toggle takes effect immediately (index.html
+    // is never re-served by the running dev server). Saved files stay
+    // clean.
     const code =
-      withSlotBadges && file.name === "index.html"
-        ? injectSlotBadges(file.content)
+      withSlotBadges && file.name === "src/main.jsx"
+        ? appendSlotBadges(file.content)
         : file.content;
     map[`/${file.name}`] = { code };
   }
