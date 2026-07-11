@@ -35,6 +35,31 @@ const PRO_PER_MONTH = 200;
 /** Grace window for past_due before Pro rules degrade (ms). */
 const PAST_DUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Quota constants shared with the usage meter (W9 Mon). */
+export const QUOTA_LIMITS = {
+  freePerDay: FREE_PER_DAY,
+  proPerMonth: PRO_PER_MONTH,
+} as const;
+
+/**
+ * Pure entitlement rule: does this subscription state get Pro quota
+ * rules right now? Exported so the W9 usage meter displays EXACTLY
+ * the window/limit the quota gate will enforce — one rule, two
+ * readers.
+ */
+export function hasProQuotaRules(
+  status: string,
+  periodEndMs: number | null,
+  nowMs: number,
+): boolean {
+  return (
+    status === "pro" ||
+    (status === "canceled" && periodEndMs !== null && periodEndMs > nowMs) ||
+    (status === "past_due" &&
+      (periodEndMs === null || periodEndMs + PAST_DUE_GRACE_MS > nowMs))
+  );
+}
+
 export type QuotaDecision =
   | { allowed: true }
   | { allowed: false; status: 401 | 402; message: string };
@@ -87,11 +112,7 @@ export async function checkHostedQuota(model: string): Promise<QuotaDecision> {
       : null;
   const now = Date.now();
 
-  const hasProRules =
-    status === "pro" ||
-    (status === "canceled" && periodEndMs !== null && periodEndMs > now) ||
-    (status === "past_due" &&
-      (periodEndMs === null || periodEndMs + PAST_DUE_GRACE_MS > now));
+  const hasProRules = hasProQuotaRules(status, periodEndMs, now);
 
   if (hasProRules) {
     const since = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();

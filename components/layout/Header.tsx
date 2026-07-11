@@ -10,6 +10,7 @@
  *
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-3.
  * Account link added in W2 Fri (auth-gated app needs a sign-out path).
+ * UsageChip added in W9 Mon (hosted-quota position at a glance).
  * The `AI Website Powerhouse` string literal is left in place —
  * product rename (if any) lands in W11 marketing work per Section 8.
  */
@@ -20,6 +21,7 @@ import { Github, LayoutGrid, Settings, User } from "lucide-react";
 import { useIntegrationsStore } from "@/lib/store/integrations-store";
 import { useUiStore } from "@/lib/store/ui-store";
 import { ChipRow } from "@/components/layout/ChipRow";
+import { UsageChip } from "@/components/layout/UsageChip";
 
 export const Header = memo(function Header() {
   const githubEnabled = useIntegrationsStore((s) => s.githubEnabled);
@@ -36,6 +38,7 @@ export const Header = memo(function Header() {
             AI Website Powerhouse
           </h1>
           <ChipRow />
+          <UsageChip />
         </div>
         <div className="flex items-center gap-2">
           {githubEnabled && (
