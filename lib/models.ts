@@ -177,7 +177,7 @@ export function formatPriceLabel(model: CuratedModel): string {
 export function formatDropdownLabel(model: CuratedModel): string {
   const surcharge =
     model.hostedSurcharge !== undefined
-      ? ` — +$${model.hostedSurcharge.toFixed(2)}/site on hosted plan (free with your own key)`
+      ? ` — +$${model.hostedSurcharge.toFixed(2)} per generation on hosted plan, builds AND edits (free with your own key)`
       : "";
   return `${model.shortLabel} (${formatPriceLabel(model)})${surcharge}`;
 }
