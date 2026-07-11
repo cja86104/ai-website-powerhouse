@@ -42,6 +42,8 @@ import { GithubPanel } from "@/components/modals/GithubPanel";
 import { effectiveTemperature } from "@/lib/utils/sampling";
 import { parseGeneratedFiles } from "@/lib/generation/parser";
 import {
+  mergeProjectFiles,
+  parseDeletedPaths,
   parseProjectFiles,
   serializeProjectFiles,
 } from "@/lib/generation/project-parser";
@@ -727,20 +729,36 @@ function Builder({ initialProjectId }: BuilderProps) {
               role: "assistant",
               content: `Updated ${scopedFile.name}.`,
             };
+          } else if (isReact) {
+            // Delta contract (2026-07-12): the response contains ONLY
+            // created/changed files plus explicit DELETE markers;
+            // everything else is kept from the current set. A model
+            // that re-emits the whole project anyway merges to the
+            // same result. If marker parsing yields nothing at all,
+            // fall back to the legacy whole-text parse as a full
+            // replacement rather than presenting an empty result.
+            const cleanedCode = fullText.trim();
+            const changed = parseProjectFiles(cleanedCode);
+            const deletedPaths = parseDeletedPaths(cleanedCode);
+            if (changed.length === 0 && deletedPaths.length === 0) {
+              files = parseGeneratedFiles(cleanedCode);
+            } else {
+              files = mergeProjectFiles(generatedFiles, changed, deletedPaths);
+            }
+            // Backstop (W5 Fri): inject the pinned scaffold files if
+            // the model forgot them — ZIPs must always be runnable.
+            files = ensureReactScaffold(files);
+            // The raw buffer must reflect the FULL merged project so
+            // the next modify round sees the real current state.
+            setGeneratedCode(joinFilesForFramework(files, framework));
+            assistantMessage = {
+              role: "assistant",
+              content: "Website updated successfully!",
+            };
           } else {
             setGeneratedCode(fullText);
             const cleanedCode = fullText.trim();
-            files = isReact
-              ? parseProjectFiles(cleanedCode)
-              : parseGeneratedFiles(cleanedCode);
-            if (isReact && files.length === 0) {
-              files = parseGeneratedFiles(cleanedCode);
-            }
-            if (isReact) {
-              // Backstop (W5 Fri): inject the pinned scaffold files if
-              // the model forgot them — ZIPs must always be runnable.
-              files = ensureReactScaffold(files);
-            }
+            files = parseGeneratedFiles(cleanedCode);
             assistantMessage = {
               role: "assistant",
               content: "Website updated successfully!",

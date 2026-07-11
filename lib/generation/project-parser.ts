@@ -137,3 +137,57 @@ export function serializeProjectFiles(files: GeneratedFile[]): string {
     )
     .join("\n\n");
 }
+
+/** Marker syntax: ===AIWP:DELETE path="src/Old.jsx"=== (delta edits, 2026-07-12). */
+const DELETE_MARKER =
+  /^[ \t]*={2,}[ \t]*AIWP:DELETE[ \t]+path="([^"]*)"[ \t]*={2,}[ \t]*$/i;
+
+/**
+ * Paths explicitly deleted by a delta modify response (2026-07-12).
+ * Under the delta contract the model emits only created/changed
+ * files; deletions must be explicit via the DELETE marker — silent
+ * omission no longer deletes anything.
+ */
+export function parseDeletedPaths(text: string): string[] {
+  const deleted: string[] = [];
+  const seen = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const match = DELETE_MARKER.exec(line);
+    if (match === null) continue;
+    const path = sanitizeProjectPath(match[1]);
+    if (path === null || seen.has(path)) continue;
+    seen.add(path);
+    deleted.push(path);
+  }
+  return deleted;
+}
+
+/**
+ * Merge a delta modify response into the current file set: updated
+ * files replace (or add to) the current ones by path; explicitly
+ * deleted paths are removed. Order: existing files keep their
+ * positions, new files append — stable ordering keeps the file
+ * browser from reshuffling on every edit.
+ */
+export function mergeProjectFiles(
+  current: GeneratedFile[],
+  updated: GeneratedFile[],
+  deletedPaths: string[],
+): GeneratedFile[] {
+  const updatedByName = new Map(updated.map((f) => [f.name, f]));
+  const deleted = new Set(deletedPaths);
+  const merged: GeneratedFile[] = [];
+  const usedNames = new Set<string>();
+
+  for (const file of current) {
+    if (deleted.has(file.name)) continue;
+    merged.push(updatedByName.get(file.name) ?? file);
+    usedNames.add(file.name);
+  }
+  for (const file of updated) {
+    if (usedNames.has(file.name) || deleted.has(file.name)) continue;
+    merged.push(file);
+    usedNames.add(file.name);
+  }
+  return merged;
+}

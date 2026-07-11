@@ -1,11 +1,16 @@
 /**
- * AI Website Powerhouse — React/Vite chat-modify prompt (W5).
+ * AI Website Powerhouse — React/Vite chat-modify prompt (W5; delta
+ * contract 2026-07-12).
  *
  * The current project is serialized back into the marker format (via
  * serializeProjectFiles) so the model sees exactly the format it must
- * emit. The model returns the COMPLETE updated project — same
- * full-replacement contract as the legacy modify flow, which keeps
- * the per-generation file snapshots in project_files consistent.
+ * emit. Since 2026-07-12 the model returns ONLY created/changed files
+ * (each complete top-to-bottom) plus explicit DELETE markers — the
+ * client merges them over the current set (mergeProjectFiles). This
+ * cut simple edits from full-rebuild time to seconds (user-reported:
+ * a background-color change took as long as the original build).
+ * Snapshots in project_files stay complete because the MERGED set is
+ * what gets persisted.
  */
 
 import { IMAGE_SLOT_RULES } from "@/lib/prompts/image-slots";
@@ -42,7 +47,8 @@ REQUIREMENTS:
 ${IMAGE_SLOT_RULES}
 
 CRITICAL OUTPUT RULES:
-- Return the COMPLETE updated project — EVERY file, including unchanged ones, in the same ===AIWP:FILE path="..."=== / ===AIWP:END=== marker format
-- Omitting a file DELETES it from the project, so only omit files the request explicitly removes
-- Output is ONLY the marker-formatted files: no prose before, between, or after`;
+- Return ONLY the files you are creating or changing, in the same ===AIWP:FILE path="..."=== / ===AIWP:END=== marker format. Files you do not emit are kept exactly as they are — do NOT re-emit unchanged files (this makes edits much faster)
+- Every file you DO emit must be its COMPLETE final content, top to bottom — never a fragment or a diff
+- To DELETE a file, emit exactly this marker on its own line: ===AIWP:DELETE path="src/OldFile.jsx"===
+- Output is ONLY markers: no prose before, between, or after`;
 }
