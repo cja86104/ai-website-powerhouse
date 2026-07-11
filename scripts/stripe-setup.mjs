@@ -145,15 +145,15 @@ async function ensureMeteredPrice(product, nickname, unitAmount, eventName, mete
 }
 
 const premiumHaiku = await ensureMeteredPrice(
-  premium, "Premium — Haiku 4.5", "10",
+  premium, "Premium — Haiku 4.5 v2", "30",
   "aiwp_premium_haiku", "AIWP Premium — Haiku generations",
 );
 const premiumSonnet = await ensureMeteredPrice(
-  premium, "Premium — Sonnet", "30",
+  premium, "Premium — Sonnet 5 v2", "75",
   "aiwp_premium_sonnet", "AIWP Premium — Sonnet generations",
 );
 const premiumOpus = await ensureMeteredPrice(
-  premium, "Premium — Opus", "80",
+  premium, "Premium — Opus 4.8 v2", "200",
   "aiwp_premium_opus", "AIWP Premium — Opus generations",
 );
 

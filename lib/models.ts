@@ -112,7 +112,7 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     inputPricePerMillion: 1.0,
     outputPricePerMillion: 5.0,
     contextWindow: 200000,
-    hostedSurcharge: 0.1,
+    hostedSurcharge: 0.3,
   },
   {
     id: "anthropic/claude-sonnet-5",
@@ -122,7 +122,7 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     inputPricePerMillion: 2.0,
     outputPricePerMillion: 10.0,
     contextWindow: 1000000,
-    hostedSurcharge: 0.3,
+    hostedSurcharge: 0.75,
   },
   {
     id: "anthropic/claude-opus-4.8",
@@ -132,7 +132,7 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     inputPricePerMillion: 5.0,
     outputPricePerMillion: 25.0,
     contextWindow: 1000000,
-    hostedSurcharge: 0.8,
+    hostedSurcharge: 2.0,
   },
 ];
 
