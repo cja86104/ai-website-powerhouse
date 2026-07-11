@@ -89,6 +89,17 @@ export const SandpackReactPreview = memo(function SandpackReactPreview() {
       template="vite-react"
       files={files}
       theme="dark"
+      // Quality-pack runtime deps (2026-07-12): merged into the
+      // TEMPLATE's dependency set — unlike overriding package.json,
+      // this cannot replace the toolchain that broke under vite 5.
+      // Must match the scaffold's package.json versions.
+      customSetup={{
+        dependencies: {
+          "framer-motion": "^11.0.0",
+          "lucide-react": "^0.553.0",
+          "react-router-dom": "^6.26.0",
+        },
+      }}
       options={{
         // Re-init the provider when the file set changes shape so
         // deleted files don't linger in the bundler's memory.

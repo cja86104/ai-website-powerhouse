@@ -58,8 +58,11 @@ Your FIRST emitted file must be this exact package.json — emit it verbatim, do
     "preview": "vite preview"
   },
   "dependencies": {
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.553.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
@@ -78,8 +81,11 @@ Your FIRST emitted file must be this exact package.json — emit it verbatim, do
 IMPORT WHITELIST — the ONLY imports allowed anywhere in the project:
 - "react" (and hooks from it)
 - "react-dom" / "react-dom/client"
+- "framer-motion" — USE IT: scroll-reveal sections, hover micro-interactions, page transitions; premium sites move
+- "lucide-react" — USE IT for all icons instead of hand-drawn SVGs
+- "react-router-dom" — for multi-page sites; ALWAYS use HashRouter (never BrowserRouter) so navigation works on any static host without server config
 - relative paths ("./Header", "../App.jsx", "./index.css")
-Importing ANY other package (react-scroll, react-router-dom, framer-motion, axios, react-icons, etc.) BREAKS THE BUILD — nothing else is installed. Build those behaviors yourself: smooth scrolling with element.scrollIntoView({ behavior: "smooth" }), navigation with React state, animation with CSS transitions/keyframes, data fetching with fetch(). Icons: inline SVG. Images: https://placehold.co URLs or CSS. State: React hooks only.
+Importing ANY other package (react-scroll, axios, react-icons, styled-components, etc.) BREAKS THE BUILD — nothing else is installed. Build those behaviors yourself: smooth scrolling with element.scrollIntoView({ behavior: "smooth" }), data fetching with fetch(). Images: https://placehold.co URLs or CSS. State: React hooks only.
 
 TAILWIND RULES (this project uses the CDN, NOT the PostCSS pipeline):
 - Do NOT emit tailwind.config.js, tailwind.config.ts, or postcss.config.js — they do nothing here and will be removed

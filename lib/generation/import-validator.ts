@@ -17,8 +17,21 @@
 
 import type { GeneratedFile } from "@/lib/generation/types";
 
-/** Packages the pinned scaffold actually provides. */
-const ALLOWED_PACKAGES = new Set(["react", "react-dom"]);
+/**
+ * Packages the pinned scaffold actually provides (2026-07-12 user
+ * decision: quality pack whitelisted — framer-motion, lucide-react,
+ * react-router-dom). react-router is react-router-dom's transitive
+ * dependency; models occasionally import from it directly and it
+ * resolves fine, so it must not trip a false warning.
+ */
+const ALLOWED_PACKAGES = new Set([
+  "react",
+  "react-dom",
+  "framer-motion",
+  "lucide-react",
+  "react-router-dom",
+  "react-router",
+]);
 
 /** import/export ... from "x" | require("x") | import("x") */
 const IMPORT_PATTERNS = [

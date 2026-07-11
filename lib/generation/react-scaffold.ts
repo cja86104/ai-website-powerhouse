@@ -33,8 +33,11 @@ const REACT_PACKAGE_JSON = `{
     "preview": "vite preview"
   },
   "dependencies": {
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.553.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",

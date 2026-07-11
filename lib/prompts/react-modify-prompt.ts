@@ -35,7 +35,7 @@ REQUIREMENTS:
 - Maintain the sophisticated quality of the original
 - Implement the change completely, with error handling and polish
 - Keep the modification consistent with the existing design system
-- Do not add npm dependencies; the package.json dependency set is fixed. The ONLY allowed imports are "react", "react-dom"/"react-dom/client", and relative paths — importing anything else (react-scroll, react-router-dom, framer-motion, etc.) breaks the build. Implement such behavior with plain React/CSS/fetch instead
+- Do not add npm dependencies; the package.json dependency set is fixed. The ONLY allowed imports are "react", "react-dom"/"react-dom/client", "framer-motion", "lucide-react", "react-router-dom" (HashRouter only, never BrowserRouter), and relative paths — importing anything else (react-scroll, axios, react-icons, etc.) breaks the build. Implement such behavior with plain React/CSS/fetch instead
 - Tailwind loads from the CDN script in index.html: never add tailwind.config or @tailwind directives, and use only standard built-in utility classes (or arbitrary values), never invented theme tokens
 - Keep every existing feature and file that the request does not remove
 
