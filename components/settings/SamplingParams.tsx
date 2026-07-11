@@ -28,6 +28,13 @@ export const SamplingParams = memo(function SamplingParams() {
         <Sliders className="w-5 h-5" />
         Model Parameters
       </h3>
+      <p className="text-xs text-purple-300/70 mb-4">
+        How creative vs. predictable the AI is. Temperature is the main
+        dial: lower = safer and more consistent, higher = more varied
+        ideas. Top P and Top K limit how far it wanders when picking
+        each word. The defaults work well — experiment freely; you can
+        always set them back (0.7 / 0.9 / 40).
+      </p>
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-purple-200 mb-2">

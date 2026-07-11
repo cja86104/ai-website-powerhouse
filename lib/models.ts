@@ -29,7 +29,7 @@ export type CustomModelId = typeof CUSTOM_MODEL_ID;
  * Surfaced in the Settings UI so users can see how fresh the numbers are.
  * Format: ISO 8601 calendar date (YYYY-MM-DD).
  */
-export const PRICE_LIST_VERIFIED_AT = "2026-06-02";
+export const PRICE_LIST_VERIFIED_AT = "2026-07-12";
 
 /**
  * One entry in the curated OpenRouter model list.
@@ -52,6 +52,12 @@ export interface CuratedModel {
   outputPricePerMillion: number;
   /** Native context window in tokens, or null if not publicly documented. */
   contextWindow: number | null;
+  /**
+   * USD billed to the USER per generation when run on the HOSTED key
+   * (Section 7 metered SKU; Stripe meters aiwp_premium_*). Absent =
+   * no surcharge. BYOK usage is never surcharged.
+   */
+  hostedSurcharge?: number;
 }
 
 /**
@@ -106,6 +112,27 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     inputPricePerMillion: 1.0,
     outputPricePerMillion: 5.0,
     contextWindow: 200000,
+    hostedSurcharge: 0.1,
+  },
+  {
+    id: "anthropic/claude-sonnet-5",
+    shortLabel: "Claude Sonnet 5 — Premium",
+    description:
+      "Frontier coding quality. The step up when a site has to be impressive on the first try.",
+    inputPricePerMillion: 2.0,
+    outputPricePerMillion: 10.0,
+    contextWindow: 1000000,
+    hostedSurcharge: 0.3,
+  },
+  {
+    id: "anthropic/claude-opus-4.8",
+    shortLabel: "Claude Opus 4.8 — Premium",
+    description:
+      "Anthropic's most capable generally available model. Maximum quality for flagship builds.",
+    inputPricePerMillion: 5.0,
+    outputPricePerMillion: 25.0,
+    contextWindow: 1000000,
+    hostedSurcharge: 0.8,
   },
 ];
 
@@ -148,7 +175,11 @@ export function formatPriceLabel(model: CuratedModel): string {
  * Example: "DeepSeek V3.2 — Best value ($0.23 in / $0.34 out per 1M)".
  */
 export function formatDropdownLabel(model: CuratedModel): string {
-  return `${model.shortLabel} (${formatPriceLabel(model)})`;
+  const surcharge =
+    model.hostedSurcharge !== undefined
+      ? ` — +$${model.hostedSurcharge.toFixed(2)}/site on hosted plan (free with your own key)`
+      : "";
+  return `${model.shortLabel} (${formatPriceLabel(model)})${surcharge}`;
 }
 
 /**

@@ -27,6 +27,7 @@
 
 import type { NextRequest } from "next/server";
 import { checkHostedQuota } from "@/lib/billing/quota";
+import { isPremiumHostedModel, recordPremiumUsage } from "@/lib/billing/meter";
 
 /**
  * Use the Node.js runtime (not Edge). The Node runtime gives deterministic
@@ -170,6 +171,15 @@ export async function POST(request: NextRequest): Promise<Response> {
   const quota = await checkHostedQuota(typed.model);
   if (!quota.allowed) {
     return errorResponse(quota.status, quota.message);
+  }
+
+  // Premium surcharge metering (user-approved modification
+  // 2026-07-12). This route IS the hosted-key path by construction
+  // (BYOK goes browser->OpenRouter directly), so an accepted premium
+  // request is exactly one billable meter event. Fire-and-forget:
+  // metering failures log loudly but never block the generation.
+  if (isPremiumHostedModel(typed.model)) {
+    void recordPremiumUsage(typed.model);
   }
 
   // Compose the upstream payload. Default `stream: true` so the existing
