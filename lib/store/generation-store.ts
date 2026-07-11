@@ -45,6 +45,10 @@ export interface GenerationStats {
 export interface GenerationState {
   /** Active project id, set by the workspace load (W5). */
   projectId: string | null;
+  /** Uploaded images for the current project (2026-07-12) — the
+   * generation prompts hand these URLs to the model. */
+  assets: { name: string; url: string }[];
+  setAssets: (value: { name: string; url: string }[]) => void;
   setProjectId: (value: string | null) => void;
 
   /** Active project's output framework (W5). */
@@ -78,6 +82,8 @@ export interface GenerationState {
 export const useGenerationStore = create<GenerationState>()((set) => ({
   projectId: null,
   setProjectId: (value) => set({ projectId: value }),
+  assets: [],
+  setAssets: (value) => set({ assets: value }),
 
   framework: "react-vite",
   setFramework: (value) => set({ framework: value }),

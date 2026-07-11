@@ -34,6 +34,8 @@ import { PreviewPanel } from "@/components/preview/PreviewPanel";
 import { FileBrowser } from "@/components/files/FileBrowser";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { HistoryPanel } from "@/components/history/HistoryPanel";
+import { AssetsPanel } from "@/components/assets/AssetsPanel";
+import { listProjectAssets } from "@/lib/assets/client";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { DeployModal } from "@/components/modals/DeployModal";
 import { GithubPanel } from "@/components/modals/GithubPanel";
@@ -88,6 +90,24 @@ function joinFilesForFramework(
     .join("\n\n");
 }
 
+/**
+ * Prompt ride-along for uploaded images (2026-07-12): when the user
+ * has uploaded photos/logos, every generate/modify request tells the
+ * model to use the REAL image URLs instead of placeholders. Appended
+ * to the outgoing prompt only — persisted prompts/messages stay
+ * clean.
+ */
+function buildAssetsNote(assets: { name: string; url: string }[]): string {
+  if (assets.length === 0) return "";
+  const lines = assets.map((a) => `- ${a.name}: ${a.url}`).join("\n");
+  return (
+    "\n\nUSER-UPLOADED IMAGES — the user provided these real images. " +
+    "Use their exact URLs in <img> tags or CSS backgrounds wherever an " +
+    "image fits the design, instead of placeholders or stock photos:\n" +
+    lines
+  );
+}
+
 /** Optional explicit project to open — set by /p/[projectId] (W7). */
 export interface BuilderProps {
   initialProjectId?: string;
@@ -112,6 +132,8 @@ function Builder({ initialProjectId }: BuilderProps) {
   const framework = useGenerationStore((s) => s.framework);
   const setFramework = useGenerationStore((s) => s.setFramework);
   const setProjectId = useGenerationStore((s) => s.setProjectId);
+  const assets = useGenerationStore((s) => s.assets);
+  const setAssets = useGenerationStore((s) => s.setAssets);
 
   // Chat Store — display state lives in MessageList/MessageInput
   // (PR-4); the values here feed the two generation handlers.
@@ -248,6 +270,13 @@ function Builder({ initialProjectId }: BuilderProps) {
         if (workspace.chatHistory.length > 0) {
           setChatHistory(workspace.chatHistory);
         }
+        // Uploaded images ride along on every prompt — load them with
+        // the workspace so the first Generate already knows about them.
+        listProjectAssets(workspace.projectId)
+          .then((loaded) => setAssets(loaded))
+          .catch((error: unknown) => {
+            console.error("Asset list failed:", error);
+          });
       })
       .catch((error: unknown) => {
         console.error("Workspace load failed:", error);
@@ -336,6 +365,7 @@ function Builder({ initialProjectId }: BuilderProps) {
       setChatHistory([]);
       setCodeHistory([]);
       setGenerationStats(null);
+      setAssets([]);
     } catch (error) {
       console.error("New project failed:", error);
       alert(
@@ -354,6 +384,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setChatHistory,
     setCodeHistory,
     setGenerationStats,
+    setAssets,
   ]);
 
   // Open a historical version (W7 Wed). Loads that generation's file
@@ -427,7 +458,7 @@ function Builder({ initialProjectId }: BuilderProps) {
         provider: aiProvider,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
+          { role: "user", content: prompt + buildAssetsNote(assets) },
         ],
         ollamaConfig: {
           url: ollamaUrl,
@@ -531,6 +562,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     }
   }, [
     prompt,
+    assets,
     framework,
     numCtx,
     temperature,
@@ -583,22 +615,25 @@ function Builder({ initialProjectId }: BuilderProps) {
         ? (generatedFiles.find((f) => f.name === scopedFilePath) ?? null)
         : null;
 
+    // Outgoing request text carries the uploaded-image URLs; the
+    // persisted user message (userMessage.content) stays clean.
+    const chatRequest = chatMessage + buildAssetsNote(assets);
     const modifyPrompt =
       scopedFile !== null
         ? buildScopedModifyPrompt({
             filePath: scopedFile.name,
             fileContent: scopedFile.content,
             projectPaths: generatedFiles.map((f) => f.name),
-            chatMessage,
+            chatMessage: chatRequest,
           })
         : isReact
           ? buildReactModifyPrompt({
               serializedProject: serializeProjectFiles(generatedFiles),
-              chatMessage,
+              chatMessage: chatRequest,
             })
           : buildModifyPrompt({
               generatedCode,
-              chatMessage,
+              chatMessage: chatRequest,
             });
 
     // Resolve the effective OpenRouter model. Same rule as handleGenerate.
@@ -745,6 +780,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     generatedCode,
     generatedFiles,
     scopedFilePath,
+    assets,
     framework,
     numCtx,
     temperature,
@@ -786,6 +822,8 @@ function Builder({ initialProjectId }: BuilderProps) {
             />
 
             <HistoryPanel onRestore={handleRestoreGeneration} />
+
+            <AssetsPanel />
 
             <ChatInterface onChatSubmit={handleChatModify} />
           </div>
