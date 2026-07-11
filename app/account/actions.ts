@@ -18,7 +18,11 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe/client";
-import { isSubscriptionPlan, priceIdForPlan } from "@/lib/stripe/prices";
+import {
+  isSubscriptionPlan,
+  premiumMeteredPriceIds,
+  priceIdForPlan,
+} from "@/lib/stripe/prices";
 
 export async function startCheckout(formData: FormData): Promise<void> {
   const plan = formData.get("plan");
@@ -74,7 +78,13 @@ export async function startCheckout(formData: FormData): Promise<void> {
     mode: "subscription",
     customer: customerId,
     client_reference_id: user.id,
-    line_items: [{ price: priceIdForPlan(plan), quantity: 1 }],
+    // Base plan + the premium metered prices (2026-07-12): meter
+    // events only invoice when the metered price is a subscription
+    // item. Metered line items must NOT set quantity.
+    line_items: [
+      { price: priceIdForPlan(plan), quantity: 1 },
+      ...premiumMeteredPriceIds().map((price) => ({ price })),
+    ],
     subscription_data: { metadata: { aiwp_user_id: user.id } },
     success_url: `${origin}/account?upgraded=1`,
     cancel_url: `${origin}/account`,

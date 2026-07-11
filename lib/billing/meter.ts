@@ -19,6 +19,7 @@ import { findCuratedModel } from "@/lib/models";
 
 /** Model slug -> Stripe meter event_name (must match stripe-setup.mjs). */
 const METER_EVENT_BY_MODEL: Record<string, string> = {
+  "qwen/qwen3-coder": "aiwp_premium_qwen480",
   "anthropic/claude-haiku-4.5": "aiwp_premium_haiku",
   "anthropic/claude-sonnet-5": "aiwp_premium_sonnet",
   "anthropic/claude-opus-4.8": "aiwp_premium_opus",

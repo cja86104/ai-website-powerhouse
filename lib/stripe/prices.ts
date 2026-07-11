@@ -30,3 +30,34 @@ export function priceIdForPlan(plan: SubscriptionPlan): string {
   }
   return id;
 }
+
+/** Env names of the premium per-generation metered prices (Section 7). */
+const PREMIUM_PRICE_ENV_NAMES = [
+  "STRIPE_PRICE_ID_PREMIUM_QWEN480",
+  "STRIPE_PRICE_ID_PREMIUM_HAIKU",
+  "STRIPE_PRICE_ID_PREMIUM_SONNET",
+  "STRIPE_PRICE_ID_PREMIUM_OPUS",
+] as const;
+
+/**
+ * Premium metered price IDs to attach to every Pro subscription
+ * (2026-07-12). Meter events only bill when the metered price is a
+ * SUBSCRIPTION ITEM — without these on the checkout, premium usage
+ * was recorded but never invoiced. Missing env vars are skipped with
+ * a loud log so a partial setup degrades to unbilled (never broken
+ * checkout).
+ */
+export function premiumMeteredPriceIds(): string[] {
+  const ids: string[] = [];
+  for (const envName of PREMIUM_PRICE_ENV_NAMES) {
+    const id = process.env[envName];
+    if (id === undefined || id.length === 0) {
+      console.error(
+        `BILLING SETUP: ${envName} is not set — that premium model's usage will NOT be invoiced.`,
+      );
+      continue;
+    }
+    ids.push(id);
+  }
+  return ids;
+}

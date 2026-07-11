@@ -144,6 +144,10 @@ async function ensureMeteredPrice(product, nickname, unitAmount, eventName, mete
   });
 }
 
+const premiumQwen = await ensureMeteredPrice(
+  premium, "Premium — Qwen3-Coder 480B", "15",
+  "aiwp_premium_qwen480", "AIWP Premium — Qwen3-Coder 480B generations",
+);
 const premiumHaiku = await ensureMeteredPrice(
   premium, "Premium — Haiku 4.5 v2", "30",
   "aiwp_premium_haiku", "AIWP Premium — Haiku generations",
@@ -160,6 +164,7 @@ const premiumOpus = await ensureMeteredPrice(
 console.log("\nAdd these to .env.local:\n");
 console.log(`STRIPE_PRICE_ID_PRO_MONTHLY=${proMonthly.id}`);
 console.log(`STRIPE_PRICE_ID_PRO_ANNUAL=${proAnnual.id}`);
+console.log(`STRIPE_PRICE_ID_PREMIUM_QWEN480=${premiumQwen.id}`);
 console.log(`STRIPE_PRICE_ID_PREMIUM_HAIKU=${premiumHaiku.id}`);
 console.log(`STRIPE_PRICE_ID_PREMIUM_SONNET=${premiumSonnet.id}`);
 console.log(`STRIPE_PRICE_ID_PREMIUM_OPUS=${premiumOpus.id}`);

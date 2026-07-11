@@ -97,12 +97,13 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
   },
   {
     id: "qwen/qwen3-coder",
-    shortLabel: "Qwen3-Coder 480B — Same as local, hosted",
+    shortLabel: "Qwen3-Coder 480B — Coding flagship",
     description:
-      "Identical model the local Ollama path uses, routed through OpenRouter instead.",
+      "480B-parameter coding specialist with a 256K window. The sweet spot between the budget tier and Claude.",
     inputPricePerMillion: 0.22,
     outputPricePerMillion: 1.8,
     contextWindow: 256000,
+    hostedSurcharge: 0.15,
   },
   {
     id: "anthropic/claude-haiku-4.5",
