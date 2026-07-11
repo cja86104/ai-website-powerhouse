@@ -46,6 +46,10 @@ import {
   serializeProjectFiles,
 } from "@/lib/generation/project-parser";
 import { ensureReactScaffold } from "@/lib/generation/react-scaffold";
+import {
+  findForbiddenImports,
+  forbiddenImportWarning,
+} from "@/lib/generation/import-validator";
 import type { GeneratedFile } from "@/lib/generation/types";
 import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
@@ -341,6 +345,23 @@ function Builder({ initialProjectId }: BuilderProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Post-parse safety net (2026-07-12, user-reported react-scroll
+  // case): if the model imported a package that isn't installed, put
+  // a plain-language recovery message in the chat BEFORE the user
+  // meets vite's red overlay. Detection only — see import-validator.
+  const warnOnForbiddenImports = useCallback(
+    (files: GeneratedFile[]) => {
+      const warning = forbiddenImportWarning(findForbiddenImports(files));
+      if (warning !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: warning },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+
   // Start fresh (W5 UX follow-up): archives the current project and
   // opens a clean workspace. Nothing is destroyed — archived projects
   // return as history with the W7 dashboard.
@@ -499,6 +520,7 @@ function Builder({ initialProjectId }: BuilderProps) {
             // Backstop (W5 Fri): inject the pinned scaffold files if
             // the model forgot them — ZIPs must always be runnable.
             files = ensureReactScaffold(files);
+            warnOnForbiddenImports(files);
           }
           setGeneratedFiles(files);
           if (files.length > 0) {
@@ -581,6 +603,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setChatHistory,
     setCodeHistory,
     setGenerationStats,
+    warnOnForbiddenImports,
   ]);
 
   // `messageOverride` (W spots, 2026-07-12): programmatic senders —
@@ -715,6 +738,9 @@ function Builder({ initialProjectId }: BuilderProps) {
               content: "Website updated successfully!",
             };
           }
+          if (isReact) {
+            warnOnForbiddenImports(files);
+          }
           setGeneratedFiles(files);
           if (scopedFile !== null) {
             setSelectedFile(
@@ -806,6 +832,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setChatHistory,
     setChatMessage,
     setCodeHistory,
+    warnOnForbiddenImports,
   ]);
 
   // One-click photo placement (2026-07-12): the AssetsPanel turns a

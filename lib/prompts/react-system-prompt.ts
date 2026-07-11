@@ -75,7 +75,11 @@ Your FIRST emitted file must be this exact package.json — emit it verbatim, do
 - src/App.jsx — composition root
 - src/components/*.jsx — one component per logical section (Header, Hero, Features, Footer, etc.). Minimum 4 components; split anything over ~150 lines.
 
-Do NOT add dependencies beyond the package.json shown above. Icons: inline SVG. Images: https://placehold.co URLs or CSS. State: React hooks only.
+IMPORT WHITELIST — the ONLY imports allowed anywhere in the project:
+- "react" (and hooks from it)
+- "react-dom" / "react-dom/client"
+- relative paths ("./Header", "../App.jsx", "./index.css")
+Importing ANY other package (react-scroll, react-router-dom, framer-motion, axios, react-icons, etc.) BREAKS THE BUILD — nothing else is installed. Build those behaviors yourself: smooth scrolling with element.scrollIntoView({ behavior: "smooth" }), navigation with React state, animation with CSS transitions/keyframes, data fetching with fetch(). Icons: inline SVG. Images: https://placehold.co URLs or CSS. State: React hooks only.
 
 TAILWIND RULES (this project uses the CDN, NOT the PostCSS pipeline):
 - Do NOT emit tailwind.config.js, tailwind.config.ts, or postcss.config.js — they do nothing here and will be removed
