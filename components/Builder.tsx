@@ -47,7 +47,11 @@ import {
   parseProjectFiles,
   serializeProjectFiles,
 } from "@/lib/generation/project-parser";
-import { ensureReactScaffold } from "@/lib/generation/react-scaffold";
+import {
+  ensureLocalImportsResolve,
+  ensureReactScaffold,
+  localImportStubNote,
+} from "@/lib/generation/react-scaffold";
 import {
   findForbiddenImports,
   forbiddenImportWarning,
@@ -371,6 +375,25 @@ function Builder({ initialProjectId }: BuilderProps) {
     [setChatHistory],
   );
 
+  // Post-parse safety net (2026-07-14, user-reported "Failed to
+  // resolve import" on first generation): the model sometimes
+  // references a local page/component it never emitted, which crashes
+  // Sandpack's bundler before React ever mounts. ensureLocalImportsResolve
+  // injects a safe placeholder so the preview always loads; this just
+  // tells the user it happened.
+  const warnOnMissingLocalImports = useCallback(
+    (injectedPaths: string[]) => {
+      const note = localImportStubNote(injectedPaths);
+      if (note !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: note },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+
   // Start fresh (W5 UX follow-up): archives the current project and
   // opens a clean workspace. Nothing is destroyed — archived projects
   // return as history with the W7 dashboard.
@@ -532,6 +555,11 @@ function Builder({ initialProjectId }: BuilderProps) {
             // the model forgot them — ZIPs must always be runnable.
             files = ensureReactScaffold(files);
             warnOnForbiddenImports(files);
+            // Backstop (2026-07-14): see ensureLocalImportsResolve doc
+            // in lib/generation/react-scaffold.ts.
+            const localImportResult = ensureLocalImportsResolve(files);
+            files = localImportResult.files;
+            warnOnMissingLocalImports(localImportResult.injectedPaths);
           }
           // Site-wide unique spot numbers, enforced client-side
           // (2026-07-12 — models number per component).
@@ -618,6 +646,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setCodeHistory,
     setGenerationStats,
     warnOnForbiddenImports,
+    warnOnMissingLocalImports,
   ]);
 
   // `messageOverride` (W spots, 2026-07-12): programmatic senders —
@@ -718,6 +747,7 @@ function Builder({ initialProjectId }: BuilderProps) {
         onDone: (fullText) => {
           let files: GeneratedFile[];
           let assistantMessage: ChatThreadMessage;
+          let missingLocalImportPaths: string[] = [];
           if (scopedFile !== null) {
             // Scoped contract: fullText IS the one file's new content
             // (tolerantly unfenced). Merge it over the scoped file and
@@ -765,7 +795,12 @@ function Builder({ initialProjectId }: BuilderProps) {
             }
             // Backstop (W5 Fri): inject the pinned scaffold files if
             // the model forgot them — ZIPs must always be runnable.
-            files = renumberImageSlots(ensureReactScaffold(files));
+            files = ensureReactScaffold(files);
+            // Backstop (2026-07-14): see ensureLocalImportsResolve doc
+            // in lib/generation/react-scaffold.ts.
+            const localImportResult = ensureLocalImportsResolve(files);
+            files = renumberImageSlots(localImportResult.files);
+            missingLocalImportPaths = localImportResult.injectedPaths;
             // The raw buffer must reflect the FULL merged project so
             // the next modify round sees the real current state.
             setGeneratedCode(joinFilesForFramework(files, framework));
@@ -786,6 +821,7 @@ function Builder({ initialProjectId }: BuilderProps) {
           }
           if (isReact) {
             warnOnForbiddenImports(files);
+            warnOnMissingLocalImports(missingLocalImportPaths);
           }
           setGeneratedFiles(files);
           if (scopedFile !== null) {
@@ -879,6 +915,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setChatMessage,
     setCodeHistory,
     warnOnForbiddenImports,
+    warnOnMissingLocalImports,
   ]);
 
   // One-click photo placement (2026-07-12): the AssetsPanel turns a
