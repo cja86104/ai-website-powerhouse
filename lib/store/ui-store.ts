@@ -3,19 +3,25 @@
  *
  * Holds transient UI flags that do not need to survive reloads:
  *  - modal visibility booleans
- *  - the preview-mode toggle ("auto" | "code" | "live")
+ *  - the preview-mode toggle ("code" | "live")
  *  - the OpenRouter server-availability probe result (runtime, not
  *    persisted)
  *  - the GitHub-panel form fields (repo name, description, commit
  *    message, clone URL) and the in-flight `isGithubProcessing` flag
  *
  * NOT persisted.
+ *
+ * `previewMode` dropped its third "auto" value (2026-07-14,
+ * user-reported blank preview on load): for react-vite projects "auto"
+ * and "live" always evaluated identically in PreviewPanel, so it was a
+ * confusing third state that never did anything different — "live" is
+ * now the default and the only non-code state.
  */
 
 import { create } from "zustand";
 
-/** Preview pane mode. `auto` shows live preview for HTML files only. */
-export type PreviewMode = "auto" | "code" | "live";
+/** Preview pane mode. `live` shows a live preview for HTML files only. */
+export type PreviewMode = "code" | "live";
 
 export interface UiState {
   // Modal/panel visibility
@@ -68,7 +74,7 @@ export const useUiStore = create<UiState>()((set) => ({
   showImageSlots: false,
   setShowImageSlots: (value) => set({ showImageSlots: value }),
 
-  previewMode: "auto",
+  previewMode: "live",
   setPreviewMode: (updater) =>
     set((state) => ({
       previewMode:

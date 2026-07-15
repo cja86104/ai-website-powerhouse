@@ -73,6 +73,7 @@ function toSandpackFiles(
 export const SandpackReactPreview = memo(function SandpackReactPreview() {
   const generatedFiles = useGenerationStore((s) => s.generatedFiles);
   const showImageSlots = useUiStore((s) => s.showImageSlots);
+  const projectId = useGenerationStore((s) => s.projectId);
 
   const files = useMemo(
     () => toSandpackFiles(generatedFiles, showImageSlots),
@@ -89,6 +90,17 @@ export const SandpackReactPreview = memo(function SandpackReactPreview() {
 
   return (
     <SandpackProvider
+      // key (2026-07-14, user-reported: preview showed a DIFFERENT
+      // previously-built site while the file browser was correct):
+      // Sandpack hot-reloads file edits fine within one provider
+      // instance (that's the modify-with-chat path, verified
+      // working), but nothing forces it to tear down its internal
+      // bundler/iframe state when the underlying project itself
+      // changes — it can keep serving a stale bundle from whatever it
+      // built earlier. Keying on projectId forces a full remount
+      // whenever the actual project changes, while edits within the
+      // same project (same id) keep using the fast hot-reload path.
+      key={projectId ?? "no-project"}
       template="vite-react"
       files={files}
       theme="dark"

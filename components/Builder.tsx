@@ -943,7 +943,7 @@ function Builder({ initialProjectId }: BuilderProps) {
       {/* Main Content */}
       <div className="max-w-[1800px] mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
-          <div className="lg:col-span-4 flex flex-col gap-6">
+          <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
             <GenerationPanel
               onGenerate={handleGenerate}
               onNewProject={handleNewProject}

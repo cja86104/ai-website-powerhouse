@@ -31,11 +31,13 @@ import { downloadFile } from "@/lib/utils/download";
 import { injectSlotBadges } from "@/lib/preview/slot-badges";
 import type { PreviewMode } from "@/lib/store/ui-store";
 
-/** Cycles Auto → Code → Live → Auto. */
+/**
+ * Toggles Live ↔ Code (2026-07-14: dropped "Auto" — it never differed
+ * from "Live" for react-vite projects and was a confusing third state
+ * that didn't do anything distinct; see ui-store.ts docblock).
+ */
 function nextPreviewMode(current: PreviewMode): PreviewMode {
-  if (current === "auto") return "code";
-  if (current === "code") return "live";
-  return "auto";
+  return current === "code" ? "live" : "code";
 }
 
 export const PreviewPanel = memo(function PreviewPanel() {
@@ -50,10 +52,12 @@ export const PreviewPanel = memo(function PreviewPanel() {
 
   const shouldShowLivePreview = useCallback((): boolean => {
     // React projects render via Sandpack (W6) in every mode but
-    // explicit Code view; Auto means Live for them.
+    // explicit Code view.
     if (framework === "react-vite") return previewMode !== "code";
     if (previewMode === "code") return false;
-    if (previewMode === "live") return true;
+    // "live" for the legacy html framework: live-preview HTML files,
+    // fall back to source view otherwise (this was "auto"'s logic;
+    // "auto" itself was removed 2026-07-14 — see ui-store.ts).
     return selectedFile?.name.endsWith(".html") ?? false;
   }, [framework, previewMode, selectedFile]);
 
@@ -145,7 +149,7 @@ export const PreviewPanel = memo(function PreviewPanel() {
               onClick={handleTogglePreview}
               className="px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors text-sm font-medium"
             >
-              {previewMode === "auto" ? "Auto" : previewMode === "code" ? "Code" : "Live"}
+              {previewMode === "code" ? "Code" : "Live"}
             </button>
             <button
               onClick={() => setShowImageSlots(!showImageSlots)}
