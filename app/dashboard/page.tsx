@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listProjects } from "@/lib/projects/actions";
 import { RenameProjectButton } from "@/components/dashboard/RenameProjectButton";
+import { DeleteProjectButton } from "@/components/dashboard/DeleteProjectButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ function ProjectCard({
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-lg font-semibold text-orange-100">{name}</h3>
         <RenameProjectButton projectId={id} currentName={name} />
+        <DeleteProjectButton projectId={id} currentName={name} />
         <span
           className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
             framework === "react-vite"

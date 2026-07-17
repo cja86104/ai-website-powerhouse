@@ -655,3 +655,63 @@ export async function renameProject(
     throw new Error(`Rename failed: ${error.message}`);
   }
 }
+
+/**
+ * Permanently delete a project (2026-07-17, user request: saved
+ * projects had no way to be removed). The projects row is the root:
+ * generations, project_files, and messages all cascade via their
+ * `on delete cascade` FKs (0001), and RLS scopes the delete to the
+ * owner. Uploaded assets in the project-assets bucket are removed
+ * best-effort AFTER the row delete succeeds — a storage hiccup must
+ * never resurrect a half-deleted project (the 0007 migration notes
+ * asset GC was deferred; this covers the delete path).
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user === null) {
+    throw new Error("Sign in to delete projects.");
+  }
+
+  // Verify the row exists AND is visible under RLS first, so a wrong
+  // id (or someone else's project) gets a real error instead of a
+  // silent zero-row delete.
+  const { data: existing, error: lookupError } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (lookupError !== null) {
+    throw new Error(`Delete failed: ${lookupError.message}`);
+  }
+  if (existing === null) {
+    throw new Error("Project not found.");
+  }
+
+  const { error: deleteError } = await supabase
+    .from("projects")
+    .delete()
+    .eq("id", projectId);
+  if (deleteError !== null) {
+    throw new Error(`Delete failed: ${deleteError.message}`);
+  }
+
+  // Best-effort asset cleanup: uploads live at userId/projectId/name
+  // in the public project-assets bucket (0007). Storage policies are
+  // owner-scoped, so this only ever touches the caller's own files.
+  try {
+    const prefix = `${user.id}/${projectId}`;
+    const { data: objects } = await supabase.storage
+      .from("project-assets")
+      .list(prefix, { limit: 100 });
+    if (objects !== null && objects.length > 0) {
+      await supabase.storage
+        .from("project-assets")
+        .remove(objects.map((o) => `${prefix}/${o.name}`));
+    }
+  } catch (error) {
+    console.error(`Asset cleanup failed for project ${projectId}:`, error);
+  }
+}
