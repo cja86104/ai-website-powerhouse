@@ -942,8 +942,12 @@ function Builder({ initialProjectId }: BuilderProps) {
 
       {/* Main Content */}
       <div className="max-w-[1800px] mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-140px)]">
-          <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
+        {/* Fixed workspace height on desktop only; small screens flow
+            naturally. The left rail scrolls INSIDE the grid (2026-07-19
+            layout fix) — before this, its overflow spilled past the
+            fixed-height row onto the page background. */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-140px)]">
+          <div className="lg:col-span-4 flex flex-col gap-6 min-h-0 lg:overflow-y-auto lg:pr-1">
             <GenerationPanel
               onGenerate={handleGenerate}
               onNewProject={handleNewProject}

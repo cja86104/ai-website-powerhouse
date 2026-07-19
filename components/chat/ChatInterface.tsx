@@ -79,7 +79,15 @@ export const ChatInterface = memo(function ChatInterface({
   ]);
 
   return (
-    <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-purple-500/30 shadow-2xl p-6 flex flex-col flex-1 min-h-0">
+    <div
+      // Layout fix (2026-07-19): the left rail scrolls now, so flex-1
+      // no longer bounds this card. With code present the card takes a
+      // fixed height and the thread scrolls internally; before any
+      // generation it keeps filling the leftover column space.
+      className={`bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-purple-500/30 shadow-2xl p-6 flex flex-col ${
+        hasGeneratedCode ? "h-[420px] shrink-0" : "flex-1 min-h-0"
+      }`}
+    >
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-purple-100">Modify with Chat</h2>
         {canUndo && (

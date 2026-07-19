@@ -24,3 +24,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Sandpack full-height fix (2026-07-19): Sandpack sizes its internal
+   stacks to --sp-layout-height (~300px default) instead of the parent
+   container, so the live preview rendered at roughly half the panel.
+   Scoped to the .aiwp-sandpack wrapper (SandpackReactPreview) so no
+   other Sandpack surface is affected. !important is required because
+   Sandpack injects its own styles at runtime (CSS-in-JS), after this
+   stylesheet in the cascade. */
+.aiwp-sandpack .sp-wrapper,
+.aiwp-sandpack .sp-layout,
+.aiwp-sandpack .sp-stack,
+.aiwp-sandpack .sp-preview,
+.aiwp-sandpack .sp-preview-container,
+.aiwp-sandpack .sp-preview-iframe {
+  height: 100% !important;
+}

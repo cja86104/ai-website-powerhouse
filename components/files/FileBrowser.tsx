@@ -34,7 +34,7 @@ export const FileBrowser = memo(function FileBrowser() {
   const hasFiles = files.length > 0;
 
   return (
-    <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-blue-500/30 shadow-2xl p-6">
+    <div className="bg-gradient-to-br from-[#2d1b3d] to-[#1a1a2e] rounded-2xl border border-blue-500/30 shadow-2xl p-6 shrink-0">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-blue-100 flex items-center gap-2">
           <FolderOpen className="w-6 h-6" />
@@ -63,7 +63,10 @@ export const FileBrowser = memo(function FileBrowser() {
 
       {hasFiles ? (
         <div className="space-y-3">
-          <div className="flex gap-2 flex-wrap">
+          {/* Layout fix (2026-07-19): cap the chip area at two rows and
+              scroll the rest — unbounded wrapping crushed the preview
+              below on many-file projects. Chip row = 40px + 8px gap. */}
+          <div className="flex gap-2 flex-wrap max-h-[88px] overflow-y-auto pr-1">
             {files.map((file) => (
               <FileTab
                 key={file.name}

@@ -89,46 +89,52 @@ export const SandpackReactPreview = memo(function SandpackReactPreview() {
   }
 
   return (
-    <SandpackProvider
-      // key (2026-07-14, user-reported: preview showed a DIFFERENT
-      // previously-built site while the file browser was correct):
-      // Sandpack hot-reloads file edits fine within one provider
-      // instance (that's the modify-with-chat path, verified
-      // working), but nothing forces it to tear down its internal
-      // bundler/iframe state when the underlying project itself
-      // changes — it can keep serving a stale bundle from whatever it
-      // built earlier. Keying on projectId forces a full remount
-      // whenever the actual project changes, while edits within the
-      // same project (same id) keep using the fast hot-reload path.
-      key={projectId ?? "no-project"}
-      template="vite-react"
-      files={files}
-      theme="dark"
-      // Quality-pack runtime deps (2026-07-12): merged into the
-      // TEMPLATE's dependency set — unlike overriding package.json,
-      // this cannot replace the toolchain that broke under vite 5.
-      // Must match the scaffold's package.json versions.
-      customSetup={{
-        dependencies: {
-          "framer-motion": "^11.0.0",
-          "lucide-react": "^0.553.0",
-          "react-router-dom": "^6.26.0",
-        },
-      }}
-      options={{
-        // Re-init the provider when the file set changes shape so
-        // deleted files don't linger in the bundler's memory.
-        activeFile: "/src/App.jsx",
-      }}
-      style={{ height: "100%" }}
-    >
-      <SandpackLayout style={{ height: "100%", border: "none" }}>
-        <SandpackPreview
-          style={{ height: "100%" }}
-          showOpenInCodeSandbox={false}
-          showRefreshButton
-        />
-      </SandpackLayout>
-    </SandpackProvider>
+    // aiwp-sandpack (2026-07-19 layout fix): Sandpack sizes its internal
+    // stacks to --sp-layout-height (~300px default), not the parent, so
+    // the live preview rendered at half the panel. The globals.css rules
+    // scoped to this class force the full internal chain to 100%.
+    <div className="aiwp-sandpack h-full">
+      <SandpackProvider
+        // key (2026-07-14, user-reported: preview showed a DIFFERENT
+        // previously-built site while the file browser was correct):
+        // Sandpack hot-reloads file edits fine within one provider
+        // instance (that's the modify-with-chat path, verified
+        // working), but nothing forces it to tear down its internal
+        // bundler/iframe state when the underlying project itself
+        // changes — it can keep serving a stale bundle from whatever it
+        // built earlier. Keying on projectId forces a full remount
+        // whenever the actual project changes, while edits within the
+        // same project (same id) keep using the fast hot-reload path.
+        key={projectId ?? "no-project"}
+        template="vite-react"
+        files={files}
+        theme="dark"
+        // Quality-pack runtime deps (2026-07-12): merged into the
+        // TEMPLATE's dependency set — unlike overriding package.json,
+        // this cannot replace the toolchain that broke under vite 5.
+        // Must match the scaffold's package.json versions.
+        customSetup={{
+          dependencies: {
+            "framer-motion": "^11.0.0",
+            "lucide-react": "^0.553.0",
+            "react-router-dom": "^6.26.0",
+          },
+        }}
+        options={{
+          // Re-init the provider when the file set changes shape so
+          // deleted files don't linger in the bundler's memory.
+          activeFile: "/src/App.jsx",
+        }}
+        style={{ height: "100%" }}
+      >
+        <SandpackLayout style={{ height: "100%", border: "none" }}>
+          <SandpackPreview
+            style={{ height: "100%" }}
+            showOpenInCodeSandbox={false}
+            showRefreshButton
+          />
+        </SandpackLayout>
+      </SandpackProvider>
+    </div>
   );
 });
