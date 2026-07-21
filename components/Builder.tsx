@@ -960,7 +960,7 @@ function Builder({ initialProjectId }: BuilderProps) {
             <ChatInterface onChatSubmit={handleChatModify} />
           </div>
 
-          <div className="lg:col-span-8 flex flex-col gap-4 overflow-hidden min-h-0">
+          <div className="lg:col-span-8 flex flex-col gap-4 lg:overflow-y-auto min-h-0">
             <FileBrowser />
 
             <PreviewPanel />

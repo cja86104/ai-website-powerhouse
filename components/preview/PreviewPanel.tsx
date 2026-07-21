@@ -174,7 +174,7 @@ export const PreviewPanel = memo(function PreviewPanel() {
       </div>
 
       {selectedFile ? (
-        <div className="flex-1 overflow-hidden rounded-lg border border-green-500/20 min-h-0">
+        <div className="flex-1 overflow-hidden rounded-lg border border-green-500/20 min-h-[768px]">
           {framework === "react-vite" && shouldShowLivePreview() ? (
             <ErrorBoundary>
               <SandpackReactPreview />
