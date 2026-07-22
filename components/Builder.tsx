@@ -57,12 +57,18 @@ import {
   forbiddenImportWarning,
 } from "@/lib/generation/import-validator";
 import { renumberImageSlots } from "@/lib/generation/slot-renumber";
+import {
+  applyImageUrls,
+  extractSlots,
+  parseImagePassResponse,
+} from "@/lib/generation/image-pass";
 import type { GeneratedFile } from "@/lib/generation/types";
 import { buildSystemPrompt } from "@/lib/prompts/system-prompt";
 import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
 import { buildReactSystemPrompt } from "@/lib/prompts/react-system-prompt";
 import { buildReactModifyPrompt } from "@/lib/prompts/react-modify-prompt";
 import { buildScopedModifyPrompt } from "@/lib/prompts/scoped-modify-prompt";
+import { IMAGE_PASS_PROMPT } from "@/lib/prompts/image-slots";
 import { extractScopedFileContent } from "@/lib/generation/scoped-parser";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useGenerationStore } from "@/lib/store/generation-store";
@@ -538,7 +544,7 @@ function Builder({ initialProjectId }: BuilderProps) {
             lastUpdateTime = now;
           }
         },
-        onDone: (fullText) => {
+        onDone: async (fullText) => {
           setGeneratedCode(fullText);
           const cleanedCode = fullText.trim();
           // Structured parse for React projects; if the model ignored
@@ -564,6 +570,56 @@ function Builder({ initialProjectId }: BuilderProps) {
           // Site-wide unique spot numbers, enforced client-side
           // (2026-07-12 — models number per component).
           files = renumberImageSlots(files);
+
+          // Silent image-resolution pass (2026-07-21): a small, invisible
+          // second call to the same proxy route, asking the model to
+          // resolve each numbered slot to a real Unsplash photo URL
+          // instead of the placehold.co fallback. `silent: true` skips
+          // quota limits and premium metering server-side (see
+          // app/api/openrouter/route.ts) — this is not a user-visible
+          // generation and must never count against the user's quota.
+          // Best-effort: any failure here is swallowed and logged — the
+          // site already works with its placeholders, so a broken image
+          // pass must never break generation itself. Runs for both
+          // frameworks; data-aiwp-slot is honored in .jsx/.js/.html
+          // alike (see lib/generation/slot-renumber.ts).
+          const slots = extractSlots(files);
+          if (Object.keys(slots).length > 0) {
+            try {
+              const slotLines = Object.entries(slots)
+                .map(([n, alt]) => `Slot ${n}: ${alt}`)
+                .join("\n");
+              const imageResponse = await fetch("/api/openrouter", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  model: effectiveOrModel,
+                  messages: [
+                    { role: "user", content: IMAGE_PASS_PROMPT(slotLines) },
+                  ],
+                  max_tokens: 1000,
+                  stream: false,
+                  silent: true,
+                }),
+              });
+              if (imageResponse.ok) {
+                const data = (await imageResponse.json()) as {
+                  choices?: Array<{ message?: { content?: string } }>;
+                };
+                const text = data.choices?.[0]?.message?.content ?? "";
+                const urls = parseImagePassResponse(text);
+                if (urls !== null) {
+                  files = applyImageUrls(files, urls);
+                }
+              }
+            } catch (error) {
+              console.log(
+                "Image pass skipped (site still ships with placeholder images):",
+                error instanceof Error ? error.message : String(error),
+              );
+            }
+          }
+
           setGeneratedFiles(files);
           if (files.length > 0) {
             setSelectedFile(files[0]);

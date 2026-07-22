@@ -20,9 +20,22 @@
  *   - Per-IP rate limiting: proxy.ts via lib/ratelimit (20 per 10 min).
  *   - Subscription quotas: the checkHostedQuota call below (free =
  *     DeepSeek only, 3/day; Pro = 200 per 30 days) — added 2026-07-10
- *     with explicit user approval as the sole modification to this
+ *     with explicit user approval, the first modification to this
  *     protected file since it shipped. A host daily spend cap remains
  *     a future item (tracked for the usage-metering work).
+ *   - Silent system passes (`silent: true` in the body — used by the
+ *     post-generation image-resolution pass in Builder.tsx): skip
+ *     quota-limit enforcement, the free-tier model restriction, and
+ *     premium-model metering, since they're small internal calls, not
+ *     user-visible generations, and must never be blocked by a user's
+ *     own quota state. They do NOT skip authentication — this route's
+ *     only auth gate is inside checkHostedQuota (proxy.ts matches
+ *     /api/openrouter but performs no gating on it), so an
+ *     unauthenticated caller is rejected the same as any other
+ *     request. `max_tokens` is hard-capped server-side for silent
+ *     calls regardless of what the caller sends, bounding a forged
+ *     `silent: true` request to one small completion. Added
+ *     2026-07-21 with explicit user approval.
  */
 
 import type { NextRequest } from "next/server";
@@ -59,7 +72,22 @@ interface ProxyRequestBody {
   top_p?: number;
   max_tokens?: number;
   stream?: boolean;
+  /**
+   * System-initiated background pass, not a user-visible generation
+   * (e.g. the image-resolution pass). See the module docblock's
+   * "Silent system passes" note for exactly what this does and does
+   * not bypass.
+   */
+  silent?: boolean;
 }
+
+/**
+ * Hard ceiling on `max_tokens` for silent passes (2026-07-21).
+ * Silent requests skip quota limits and premium metering, so this cap
+ * bounds the cost of an abused/forged `silent: true` request to one
+ * small completion no matter what `max_tokens` the caller sends.
+ */
+const SILENT_MAX_TOKENS = 1500;
 
 /** Build a JSON error response without leaking environment state. */
 function errorResponse(status: number, message: string): Response {
@@ -112,6 +140,9 @@ function validateBody(body: unknown): string | null {
   }
   if (b.stream !== undefined && typeof b.stream !== "boolean") {
     return "Field `stream` must be a boolean when provided.";
+  }
+  if (b.silent !== undefined && typeof b.silent !== "boolean") {
+    return "Field `silent` must be a boolean when provided.";
   }
   return null;
 }
@@ -168,8 +199,16 @@ export async function POST(request: NextRequest): Promise<Response> {
   // Subscription quota (W4; user-approved modification 2026-07-10).
   // Runs after validation so the model slug is trustworthy, before any
   // upstream work so denied requests cost nothing.
+  //
+  // Silent passes (2026-07-21, user-approved — see module docblock)
+  // still run this check for its AUTH side effect — a 401 (not signed
+  // in) always rejects, silent or not, since this is the route's only
+  // auth gate — but a 402 (quota exceeded / wrong tier for `model`) is
+  // waived for silent calls: they're small internal calls, not a
+  // user-visible generation, and must never be blocked by the user's
+  // own quota state.
   const quota = await checkHostedQuota(typed.model);
-  if (!quota.allowed) {
+  if (!quota.allowed && (!typed.silent || quota.status === 401)) {
     return errorResponse(quota.status, quota.message);
   }
 
@@ -178,7 +217,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   // (BYOK goes browser->OpenRouter directly), so an accepted premium
   // request is exactly one billable meter event. Fire-and-forget:
   // metering failures log loudly but never block the generation.
-  if (isPremiumHostedModel(typed.model)) {
+  // Skipped for silent passes (2026-07-21) — see module docblock;
+  // the SILENT_MAX_TOKENS cap below bounds their cost instead.
+  if (!typed.silent && isPremiumHostedModel(typed.model)) {
     void recordPremiumUsage(typed.model);
   }
 
@@ -196,7 +237,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     upstreamPayload.top_p = typed.top_p;
   }
   if (typeof typed.max_tokens === "number") {
-    upstreamPayload.max_tokens = typed.max_tokens;
+    upstreamPayload.max_tokens = typed.silent
+      ? Math.min(typed.max_tokens, SILENT_MAX_TOKENS)
+      : typed.max_tokens;
+  } else if (typed.silent) {
+    upstreamPayload.max_tokens = SILENT_MAX_TOKENS;
   }
 
   // Build OpenRouter attribution headers. `HTTP-Referer` and `X-Title` are
