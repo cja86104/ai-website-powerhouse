@@ -29,7 +29,7 @@ export type CustomModelId = typeof CUSTOM_MODEL_ID;
  * Surfaced in the Settings UI so users can see how fresh the numbers are.
  * Format: ISO 8601 calendar date (YYYY-MM-DD).
  */
-export const PRICE_LIST_VERIFIED_AT = "2026-07-12";
+export const PRICE_LIST_VERIFIED_AT = "2026-07-24";
 
 /**
  * One entry in the curated OpenRouter model list.
@@ -96,6 +96,15 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     contextWindow: 256000,
   },
   {
+    id: "qwen/qwen3.7-plus",
+    shortLabel: "Qwen3.7 Plus — Multimodal mid-tier",
+    description:
+      "Vision + text input with 1M context. Useful when image input matters — screen reading, GUI interaction, or code from visual references.",
+    inputPricePerMillion: 0.32,
+    outputPricePerMillion: 1.28,
+    contextWindow: 1000000,
+  },
+  {
     id: "qwen/qwen3-coder",
     shortLabel: "Qwen3-Coder 480B — Coding flagship",
     description:
@@ -116,6 +125,16 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     hostedSurcharge: 0.3,
   },
   {
+    id: "x-ai/grok-4.5",
+    shortLabel: "Grok 4.5 — Premium",
+    description:
+      "xAI's coding-focused Opus-class model. Strong reasoning and code quality at roughly half the cost of Claude Opus.",
+    inputPricePerMillion: 2.0,
+    outputPricePerMillion: 6.0,
+    contextWindow: 500000,
+    hostedSurcharge: 0.4,
+  },
+  {
     id: "anthropic/claude-sonnet-5",
     shortLabel: "Claude Sonnet 5 — Premium",
     description:
@@ -133,6 +152,16 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     inputPricePerMillion: 5.0,
     outputPricePerMillion: 25.0,
     contextWindow: 1000000,
+    hostedSurcharge: 2.0,
+  },
+  {
+    id: "anthropic/claude-opus-5",
+    shortLabel: "Claude Opus 5 — Premium",
+    description:
+      "Anthropic's latest flagship. Step up from Opus 4.8 when maximum frontier quality is required.",
+    inputPricePerMillion: 5.0,
+    outputPricePerMillion: 25.0,
+    contextWindow: null,
     hostedSurcharge: 2.0,
   },
 ];
