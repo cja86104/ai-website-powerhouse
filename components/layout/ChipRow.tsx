@@ -2,11 +2,14 @@
 
 /**
  * ChipRow — the small badge row in the header:
- *   [Full-Stack (if Supabase)] [GitHub (if enabled)] [AI provider chip]
+ *   [Full-Stack (if Supabase)] [Payments (if Stripe)] [GitHub (if enabled)] [AI provider chip]
  *
- * Reads its data from the integrations store (Supabase/GitHub
- * enablement) and the settings store (active provider + model /
- * ollama URL). No props.
+ * Reads GitHub enablement from the integrations store, the ACTIVE
+ * PROJECT'S real Supabase connection state from generation-store
+ * (2026-07-31 — previously a dead, always-false legacy flag; see
+ * PLAN/Feature-Connect-Your-Supabase.md), the same project's Stripe
+ * connection state (2026-08-01, same store, mirrors supabaseConnected),
+ * and provider/model info from the settings store. No props.
  *
  * The AI-provider chip title-attribute reproduces the legacy
  * hover-tooltip behavior verbatim so power users who rely on it
@@ -18,14 +21,16 @@
  */
 
 import { memo } from "react";
-import { Cloud, Database, Github } from "lucide-react";
+import { Cloud, CreditCard, Database, Github } from "lucide-react";
 import { CUSTOM_MODEL_ID, DEFAULT_OLLAMA_MODEL_ID } from "@/lib/models";
 import { useIntegrationsStore } from "@/lib/store/integrations-store";
+import { useGenerationStore } from "@/lib/store/generation-store";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useUiStore } from "@/lib/store/ui-store";
 
 export const ChipRow = memo(function ChipRow() {
-  const supabaseEnabled = useIntegrationsStore((s) => s.supabaseEnabled);
+  const supabaseConnected = useGenerationStore((s) => s.supabaseConnected);
+  const stripeConnected = useGenerationStore((s) => s.stripeConnected);
   const githubEnabled = useIntegrationsStore((s) => s.githubEnabled);
   const aiProvider = useSettingsStore((s) => s.aiProvider);
   const ollamaUrl = useSettingsStore((s) => s.ollamaUrl);
@@ -52,10 +57,16 @@ export const ChipRow = memo(function ChipRow() {
 
   return (
     <>
-      {supabaseEnabled && (
+      {supabaseConnected && (
         <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full text-green-300 text-sm font-medium flex items-center gap-1">
           <Database className="w-3 h-3" />
           Full-Stack
+        </span>
+      )}
+      {stripeConnected && (
+        <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full text-green-300 text-sm font-medium flex items-center gap-1">
+          <CreditCard className="w-3 h-3" />
+          Payments
         </span>
       )}
       {githubEnabled && (

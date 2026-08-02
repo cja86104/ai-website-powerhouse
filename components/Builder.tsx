@@ -53,6 +53,22 @@ import {
   localImportStubNote,
 } from "@/lib/generation/react-scaffold";
 import {
+  ensureSupabaseClientFile,
+  supabaseClientInjectedNote,
+  supabaseSchemaNote,
+} from "@/lib/generation/supabase-scaffold";
+import {
+  ensureStripeClientFile,
+  stripeClientInjectedNote,
+  stripeCheckoutBuiltNote,
+  ensureStripeBackendFunction,
+  stripeBackendFunctionInjectedNote,
+} from "@/lib/generation/stripe-scaffold";
+import {
+  resumeMessageForBlocker,
+  type BlockerType,
+} from "@/lib/generation/blocker-notes";
+import {
   findForbiddenImports,
   forbiddenImportWarning,
 } from "@/lib/generation/import-validator";
@@ -68,6 +84,10 @@ import { buildModifyPrompt } from "@/lib/prompts/modify-prompt";
 import { buildReactSystemPrompt } from "@/lib/prompts/react-system-prompt";
 import { buildReactModifyPrompt } from "@/lib/prompts/react-modify-prompt";
 import { buildScopedModifyPrompt } from "@/lib/prompts/scoped-modify-prompt";
+import { buildSupabaseBlock } from "@/lib/prompts/supabase-block";
+import { buildStripeBlock } from "@/lib/prompts/stripe-block";
+import { buildRecentHistoryBlock } from "@/lib/prompts/recent-history-block";
+import { buildPlanModePrompt } from "@/lib/prompts/plan-mode-prompt";
 import { IMAGE_PASS_PROMPT } from "@/lib/prompts/image-slots";
 import { extractScopedFileContent } from "@/lib/generation/scoped-parser";
 import { useSettingsStore } from "@/lib/store/settings-store";
@@ -84,6 +104,8 @@ import {
   startNewProject,
 } from "@/lib/projects/actions";
 import { loadOpenrouterProfile } from "@/lib/integrations/actions";
+import { loadSupabaseConnection } from "@/lib/supabase-connect/actions";
+import { loadStripeConnection } from "@/lib/stripe-connect/actions";
 import { listUserTemplates } from "@/lib/templates/actions";
 import { useTemplatesStore } from "@/lib/store/templates-store";
 
@@ -148,12 +170,21 @@ function Builder({ initialProjectId }: BuilderProps) {
   const setGenerationStats = useGenerationStore((s) => s.setGenerationStats);
   const framework = useGenerationStore((s) => s.framework);
   const setFramework = useGenerationStore((s) => s.setFramework);
+  const supabaseConnected = useGenerationStore((s) => s.supabaseConnected);
+  const setSupabaseConnected = useGenerationStore(
+    (s) => s.setSupabaseConnected,
+  );
+  const stripeConnected = useGenerationStore((s) => s.stripeConnected);
+  const setStripeConnected = useGenerationStore((s) => s.setStripeConnected);
   const setProjectId = useGenerationStore((s) => s.setProjectId);
   const assets = useGenerationStore((s) => s.assets);
   const setAssets = useGenerationStore((s) => s.setAssets);
+  const chatMode = useGenerationStore((s) => s.chatMode);
+  const setChatMode = useGenerationStore((s) => s.setChatMode);
 
   // Chat Store — display state lives in MessageList/MessageInput
   // (PR-4); the values here feed the two generation handlers.
+  const chatHistory = useChatStore((s) => s.chatHistory);
   const setChatHistory = useChatStore((s) => s.setChatHistory);
   const chatMessage = useChatStore((s) => s.chatMessage);
   const setChatMessage = useChatStore((s) => s.setChatMessage);
@@ -280,6 +311,8 @@ function Builder({ initialProjectId }: BuilderProps) {
         latestGenerationIdRef.current = workspace.latestGenerationId;
         setProjectId(workspace.projectId);
         setFramework(workspace.framework);
+        setSupabaseConnected(workspace.supabaseConnected);
+        setStripeConnected(workspace.stripeConnected);
         // UNCONDITIONAL reset (2026-07-12 user-reported): the stores
         // are singletons that survive client-side navigation, so an
         // "only set when non-empty" load kept the PREVIOUS project's
@@ -293,6 +326,7 @@ function Builder({ initialProjectId }: BuilderProps) {
         setCodeHistory([]);
         setGenerationStats(null);
         setScopedFilePath(null);
+        setChatMode("build");
         // Uploaded images ride along on every prompt — load them with
         // the workspace so the first Generate already knows about them.
         listProjectAssets(workspace.projectId)
@@ -400,6 +434,77 @@ function Builder({ initialProjectId }: BuilderProps) {
     [setChatHistory],
   );
 
+  // Post-parse safety nets for Connect Your Supabase (2026-07-31, item
+  // 4): mirrors warnOnMissingLocalImports's shape exactly. The client-
+  // file note only fires when ensureSupabaseClientFile actually had to
+  // inject the file (the model already emitting a correct one is the
+  // common case once a project has a couple of rounds against it). The
+  // schema note fires whenever the model emits supabase/schema.sql,
+  // regardless of who wrote src/lib/supabase.ts, since new tables can
+  // come up on any round once connected.
+  const noteSupabaseClientInjected = useCallback(
+    (result: { injected: boolean; corrected: boolean }) => {
+      const note = supabaseClientInjectedNote(result);
+      if (note !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: note },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+  const noteSupabaseSchema = useCallback(
+    (files: GeneratedFile[]) => {
+      const note = supabaseSchemaNote(files);
+      if (note !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: note },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+
+  // Same shape for Connect Your Stripe (2026-08-01, item 4).
+  const noteStripeClientInjected = useCallback(
+    (injected: boolean) => {
+      const note = stripeClientInjectedNote(injected);
+      if (note !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: note },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+  const noteStripeCheckoutBuilt = useCallback(
+    (files: GeneratedFile[]) => {
+      const note = stripeCheckoutBuiltNote(files);
+      if (note !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: note },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+  const noteStripeBackendFunctionInjected = useCallback(
+    (injected: boolean) => {
+      const note = stripeBackendFunctionInjectedNote(injected);
+      if (note !== null) {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: note },
+        ]);
+      }
+    },
+    [setChatHistory],
+  );
+
   // Start fresh (W5 UX follow-up): archives the current project and
   // opens a clean workspace. Nothing is destroyed — archived projects
   // return as history with the W7 dashboard.
@@ -417,6 +522,8 @@ function Builder({ initialProjectId }: BuilderProps) {
       latestGenerationIdRef.current = null;
       setProjectId(fresh.projectId);
       setFramework(fresh.framework);
+      setSupabaseConnected(false);
+      setStripeConnected(false);
       setPrompt("");
       setGeneratedCode("");
       setGeneratedFiles([]);
@@ -426,6 +533,7 @@ function Builder({ initialProjectId }: BuilderProps) {
       setGenerationStats(null);
       setAssets([]);
       setScopedFilePath(null);
+      setChatMode("build");
     } catch (error) {
       console.error("New project failed:", error);
       alert(
@@ -437,6 +545,8 @@ function Builder({ initialProjectId }: BuilderProps) {
   }, [
     setProjectId,
     setFramework,
+    setSupabaseConnected,
+    setStripeConnected,
     setPrompt,
     setGeneratedCode,
     setGeneratedFiles,
@@ -446,6 +556,7 @@ function Builder({ initialProjectId }: BuilderProps) {
     setGenerationStats,
     setAssets,
     setScopedFilePath,
+    setChatMode,
   ]);
 
   // Open a historical version (W7 Wed). Loads that generation's file
@@ -504,6 +615,24 @@ function Builder({ initialProjectId }: BuilderProps) {
       ? buildReactSystemPrompt()
       : buildSystemPrompt();
 
+    // Connect Your Supabase (2026-07-31, item 4): resolve the real,
+    // decrypted connection fresh for this round rather than caching it
+    // — react-vite only (decision 5), and the cheap `supabaseConnected`
+    // flag short-circuits the DB round-trip for the common disconnected
+    // case. `null` here means "no SUPABASE BACKEND CONNECTED block, no
+    // client-file backstop" — the model is told not to import
+    // "@supabase/supabase-js" at all in that case.
+    const supabaseConnection =
+      isReact && supabaseConnected && projectIdRef.current !== null
+        ? await loadSupabaseConnection(projectIdRef.current)
+        : null;
+
+    // Same shape for Connect Your Stripe (2026-08-01, item 4).
+    const stripeConnection =
+      isReact && stripeConnected && projectIdRef.current !== null
+        ? await loadStripeConnection(projectIdRef.current)
+        : null;
+
     // Resolve the effective OpenRouter model. The CUSTOM_MODEL_ID sentinel
     // means the user picked "Custom…" in the dropdown and typed their own slug.
     const effectiveOrModel =
@@ -519,7 +648,22 @@ function Builder({ initialProjectId }: BuilderProps) {
         provider: aiProvider,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: prompt + buildAssetsNote(assets) },
+          {
+            role: "user",
+            content:
+              prompt +
+              buildAssetsNote(assets) +
+              buildSupabaseBlock(supabaseConnection) +
+              buildStripeBlock(stripeConnection, supabaseConnection !== null) +
+              // 2026-08-01, Chat/Plan Mode item 2: `chatHistory` here
+              // is the closed-over store value from BEFORE this
+              // function's own `setChatHistory([])` call above takes
+              // effect — real prior conversation (e.g. earlier
+              // chat-modify rounds before the user hit Generate
+              // again), not always empty. See
+              // lib/prompts/recent-history-block.ts doc.
+              buildRecentHistoryBlock(chatHistory),
+          },
         ],
         ollamaConfig: {
           url: ollamaUrl,
@@ -566,6 +710,36 @@ function Builder({ initialProjectId }: BuilderProps) {
             const localImportResult = ensureLocalImportsResolve(files);
             files = localImportResult.files;
             warnOnMissingLocalImports(localImportResult.injectedPaths);
+            // Backstop (2026-07-31, Connect Your Supabase item 4): see
+            // lib/generation/supabase-scaffold.ts doc. No-op when
+            // supabaseConnection is null (not connected).
+            const supabaseResult = ensureSupabaseClientFile(
+              files,
+              supabaseConnection,
+            );
+            files = supabaseResult.files;
+            noteSupabaseClientInjected(supabaseResult);
+            noteSupabaseSchema(files);
+            // Same shape for Connect Your Stripe (2026-08-01, item 4):
+            // see lib/generation/stripe-scaffold.ts doc. No-op when
+            // stripeConnection is null (not connected).
+            const stripeResult = ensureStripeClientFile(
+              files,
+              stripeConnection,
+            );
+            files = stripeResult.files;
+            noteStripeClientInjected(stripeResult.injected);
+            noteStripeCheckoutBuilt(files);
+            // Real backend piece (2026-08-01): only when this SAME
+            // project also has Supabase connected — see
+            // lib/generation/stripe-scaffold.ts doc.
+            const stripeBackendResult = ensureStripeBackendFunction(
+              files,
+              stripeConnection,
+              supabaseConnection !== null,
+            );
+            files = stripeBackendResult.files;
+            noteStripeBackendFunctionInjected(stripeBackendResult.injected);
           }
           // Site-wide unique spot numbers, enforced client-side
           // (2026-07-12 — models number per component).
@@ -694,6 +868,9 @@ function Builder({ initialProjectId }: BuilderProps) {
     openrouterModel,
     openrouterCustomSlug,
     openrouterMaxTokens,
+    supabaseConnected,
+    stripeConnected,
+    chatHistory,
     setIsGenerating,
     setGeneratedCode,
     setGeneratedFiles,
@@ -703,6 +880,11 @@ function Builder({ initialProjectId }: BuilderProps) {
     setGenerationStats,
     warnOnForbiddenImports,
     warnOnMissingLocalImports,
+    noteSupabaseClientInjected,
+    noteSupabaseSchema,
+    noteStripeClientInjected,
+    noteStripeCheckoutBuilt,
+    noteStripeBackendFunctionInjected,
   ]);
 
   // `messageOverride` (W spots, 2026-07-12): programmatic senders —
@@ -713,6 +895,93 @@ function Builder({ initialProjectId }: BuilderProps) {
     const request =
       typeof messageOverride === "string" ? messageOverride : chatMessage;
     if (!request.trim() || !generatedCode) return;
+
+    // Plan mode (2026-08-01, Chat/Plan Mode work-plan item 3,
+    // PLAN/Feature-Chat-Plan-Mode.md §5.1): strictly read + discuss.
+    // Self-contained early-return branch so the Build path below is
+    // completely untouched — no file parsing, no merge, no
+    // codeHistory snapshot (nothing about the project changes in this
+    // mode, so there's nothing meaningful to undo).
+    if (chatMode === "plan") {
+      const planUserMessage: ChatThreadMessage = {
+        role: "user",
+        content: request,
+      };
+      setChatHistory((prev) => [...prev, planUserMessage]);
+      setChatMessage("");
+      setIsGenerating(true);
+
+      const planPrompt = buildPlanModePrompt({
+        serializedProject:
+          framework === "react-vite"
+            ? serializeProjectFiles(generatedFiles)
+            : generatedCode,
+        chatMessage: request,
+        recentHistoryBlock: buildRecentHistoryBlock(chatHistory),
+      });
+
+      const effectiveOrModelForPlan =
+        openrouterModel === CUSTOM_MODEL_ID
+          ? openrouterCustomSlug.trim()
+          : openrouterModel;
+
+      let planCapturedError: Error | null = null;
+      try {
+        await generateStream({
+          provider: aiProvider,
+          messages: [{ role: "user", content: planPrompt }],
+          ollamaConfig: {
+            url: ollamaUrl,
+            model: DEFAULT_OLLAMA_MODEL_ID,
+            num_ctx: numCtx,
+            temperature: effectiveTemperature(temperature),
+            top_p: topP,
+            top_k: topK,
+            repeat_penalty: 1.1,
+          },
+          openrouterConfig: {
+            apiKey: openrouterKey.trim() || null,
+            model: effectiveOrModelForPlan,
+            temperature: effectiveTemperature(temperature),
+            top_p: topP,
+            max_tokens: openrouterMaxTokens,
+          },
+          onChunk: () => {
+            // No live-preview target in Plan mode (nothing about the
+            // project's code/preview should move while discussing) —
+            // the response commits to chatHistory as one message in
+            // onDone, the same as every other assistant chat entry.
+          },
+          onDone: (fullText) => {
+            const planAssistantMessage: ChatThreadMessage = {
+              role: "assistant",
+              content: fullText.trim(),
+            };
+            setChatHistory((prev) => [...prev, planAssistantMessage]);
+          },
+          onError: (err) => {
+            planCapturedError = err;
+          },
+        });
+        if (planCapturedError !== null) {
+          throw planCapturedError;
+        }
+      } catch (error) {
+        console.error("Plan mode error:", error);
+        const providerLabel = aiProvider === "ollama" ? "Ollama" : "OpenRouter";
+        const message = error instanceof Error ? error.message : String(error);
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Plan mode error (${providerLabel}): ${message}`,
+          },
+        ]);
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
 
     // Save current version to history before modifying
     setCodeHistory((prev) => [
@@ -734,6 +1003,21 @@ function Builder({ initialProjectId }: BuilderProps) {
 
     const isReact = framework === "react-vite";
 
+    // Connect Your Supabase (2026-07-31, item 4): same resolution rule
+    // as handleGenerate — react-vite only, resolved fresh per round.
+    // Applies to the scoped-file path too (scoped modify isn't
+    // framework-gated on its own, so `isReact` is the gate here).
+    const supabaseConnection =
+      isReact && supabaseConnected && projectIdRef.current !== null
+        ? await loadSupabaseConnection(projectIdRef.current)
+        : null;
+
+    // Same shape for Connect Your Stripe (2026-08-01, item 4).
+    const stripeConnection =
+      isReact && stripeConnected && projectIdRef.current !== null
+        ? await loadStripeConnection(projectIdRef.current)
+        : null;
+
     // File-aware scope (W8 Mon): when the user picked one file in the
     // chat scope dropdown, use the single-file contract — the model
     // sees only that file (plus the path listing) and returns only its
@@ -743,9 +1027,21 @@ function Builder({ initialProjectId }: BuilderProps) {
         ? (generatedFiles.find((f) => f.name === scopedFilePath) ?? null)
         : null;
 
-    // Outgoing request text carries the uploaded-image URLs; the
-    // persisted user message (userMessage.content) stays clean.
-    const chatRequest = request + buildAssetsNote(assets);
+    // Outgoing request text carries the uploaded-image URLs, (when
+    // connected) the Supabase/Stripe backend blocks, and (2026-08-01,
+    // Chat/Plan Mode item 2) a bounded window of the messages BEFORE
+    // this one — `chatHistory` here is the closed-over store value at
+    // call time, i.e. everything prior to the round about to be sent,
+    // never the current request itself. This is the fix for "the
+    // model only ever sees one message" (see
+    // lib/prompts/recent-history-block.ts doc). The persisted user
+    // message (userMessage.content) stays clean either way.
+    const chatRequest =
+      request +
+      buildAssetsNote(assets) +
+      buildSupabaseBlock(supabaseConnection) +
+      buildStripeBlock(stripeConnection, supabaseConnection !== null) +
+      buildRecentHistoryBlock(chatHistory);
     const modifyPrompt =
       scopedFile !== null
         ? buildScopedModifyPrompt({
@@ -804,6 +1100,10 @@ function Builder({ initialProjectId }: BuilderProps) {
           let files: GeneratedFile[];
           let assistantMessage: ChatThreadMessage;
           let missingLocalImportPaths: string[] = [];
+          let supabaseClientInjected = false;
+          let supabaseClientCorrected = false;
+          let stripeClientInjected = false;
+          let stripeBackendFunctionInjected = false;
           if (scopedFile !== null) {
             // Scoped contract: fullText IS the one file's new content
             // (tolerantly unfenced). Merge it over the scoped file and
@@ -855,8 +1155,37 @@ function Builder({ initialProjectId }: BuilderProps) {
             // Backstop (2026-07-14): see ensureLocalImportsResolve doc
             // in lib/generation/react-scaffold.ts.
             const localImportResult = ensureLocalImportsResolve(files);
-            files = renumberImageSlots(localImportResult.files);
+            files = localImportResult.files;
             missingLocalImportPaths = localImportResult.injectedPaths;
+            // Backstop (2026-07-31, Connect Your Supabase item 4): see
+            // lib/generation/supabase-scaffold.ts doc. No-op when
+            // supabaseConnection is null (not connected).
+            const supabaseResult = ensureSupabaseClientFile(
+              files,
+              supabaseConnection,
+            );
+            files = supabaseResult.files;
+            supabaseClientInjected = supabaseResult.injected;
+            supabaseClientCorrected = supabaseResult.corrected;
+            // Same shape for Connect Your Stripe (2026-08-01, item 4):
+            // see lib/generation/stripe-scaffold.ts doc. No-op when
+            // stripeConnection is null (not connected).
+            const stripeResult = ensureStripeClientFile(
+              files,
+              stripeConnection,
+            );
+            files = stripeResult.files;
+            stripeClientInjected = stripeResult.injected;
+            // Real backend piece (2026-08-01): only when this SAME
+            // project also has Supabase connected — see
+            // lib/generation/stripe-scaffold.ts doc.
+            const stripeBackendResult = ensureStripeBackendFunction(
+              files,
+              stripeConnection,
+              supabaseConnection !== null,
+            );
+            files = renumberImageSlots(stripeBackendResult.files);
+            stripeBackendFunctionInjected = stripeBackendResult.injected;
             // The raw buffer must reflect the FULL merged project so
             // the next modify round sees the real current state.
             setGeneratedCode(joinFilesForFramework(files, framework));
@@ -878,6 +1207,14 @@ function Builder({ initialProjectId }: BuilderProps) {
           if (isReact) {
             warnOnForbiddenImports(files);
             warnOnMissingLocalImports(missingLocalImportPaths);
+            noteSupabaseClientInjected({
+              injected: supabaseClientInjected,
+              corrected: supabaseClientCorrected,
+            });
+            noteSupabaseSchema(files);
+            noteStripeClientInjected(stripeClientInjected);
+            noteStripeCheckoutBuilt(files);
+            noteStripeBackendFunctionInjected(stripeBackendFunctionInjected);
           }
           setGeneratedFiles(files);
           if (scopedFile !== null) {
@@ -963,6 +1300,10 @@ function Builder({ initialProjectId }: BuilderProps) {
     openrouterModel,
     openrouterCustomSlug,
     openrouterMaxTokens,
+    supabaseConnected,
+    stripeConnected,
+    chatHistory,
+    chatMode,
     setIsGenerating,
     setGeneratedCode,
     setGeneratedFiles,
@@ -972,6 +1313,11 @@ function Builder({ initialProjectId }: BuilderProps) {
     setCodeHistory,
     warnOnForbiddenImports,
     warnOnMissingLocalImports,
+    noteSupabaseClientInjected,
+    noteSupabaseSchema,
+    noteStripeClientInjected,
+    noteStripeCheckoutBuilt,
+    noteStripeBackendFunctionInjected,
   ]);
 
   // One-click photo placement (2026-07-12): the AssetsPanel turns a
@@ -982,6 +1328,22 @@ function Builder({ initialProjectId }: BuilderProps) {
       void handleChatModify(
         `Put the image "${asset.name}" into image spot ${slot}: set the src (or background-image) of the element with data-aiwp-slot="${slot}" to exactly ${asset.url}. THE IMAGE MUST FIT INSIDE THAT ELEMENT'S EXISTING BOX: keep the container's current width, height, and layout classes exactly as they are, and make the image fill it (for an <img>, className "w-full h-full object-cover"; for a background, background-size cover). Never enlarge the container or change the page layout. Change nothing else.`,
       );
+    },
+    [handleChatModify],
+  );
+
+  // Deterministic blocker resume (2026-08-01, Chat/Plan Mode item 1,
+  // PLAN/Feature-Chat-Plan-Mode.md §5.1): when the chat thread's last
+  // message is a known "waiting on you" note (schema.sql, Stripe
+  // backend function), ChatInterface shows a resume button instead of
+  // requiring the user to type "continue" and trust the model to
+  // infer what that means — the exact free-text phrase that tripped
+  // up a weaker model in the 2026-08-01 report. Mirrors the
+  // `handlePlaceImage` shape: message-construction stays centralized
+  // here, the child component only passes up which blocker it is.
+  const handleResumeAfterBlocker = useCallback(
+    (blocker: BlockerType) => {
+      void handleChatModify(resumeMessageForBlocker(blocker));
     },
     [handleChatModify],
   );
@@ -1013,7 +1375,10 @@ function Builder({ initialProjectId }: BuilderProps) {
 
             <AssetsPanel onPlaceImage={handlePlaceImage} />
 
-            <ChatInterface onChatSubmit={handleChatModify} />
+            <ChatInterface
+              onChatSubmit={handleChatModify}
+              onResume={handleResumeAfterBlocker}
+            />
           </div>
 
           <div className="lg:col-span-8 flex flex-col gap-4 lg:overflow-y-auto min-h-0">

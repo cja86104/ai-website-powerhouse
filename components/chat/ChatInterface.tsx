@@ -18,6 +18,20 @@
  * store; Builder's handleChatModify reads it to pick the scoped
  * single-file contract over the full-replacement one.
  *
+ * 2026-08-01 (Chat/Plan Mode item 1, PLAN/Feature-Chat-Plan-Mode.md
+ * §5.1): also owns the resume-button affordance. When the last
+ * message in the thread is a recognized "waiting on you" blocker note
+ * (schema.sql, Stripe backend function), a button renders directly
+ * below the thread instead of requiring the user to type "continue"
+ * and trust the model to infer what that means.
+ *
+ * 2026-08-01 (Chat/Plan Mode item 3, §5.1/§7 decision 1): also owns
+ * the Build/Plan mode toggle. `chatMode` lives on the generation store
+ * (per-project state, resets to "build" on project load/New Project —
+ * mirrors `scopedFilePath`'s reset posture) and both this component
+ * and `Builder.tsx`'s `handleChatModify` read it independently, same
+ * pattern as every other generation-store field both already share.
+ *
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-4.
  */
 
@@ -27,14 +41,27 @@ import { useChatStore } from "@/lib/store/chat-store";
 import { useGenerationStore } from "@/lib/store/generation-store";
 import { MessageList } from "@/components/chat/MessageList";
 import { MessageInput } from "@/components/chat/MessageInput";
+import {
+  classifyBlockerNote,
+  RESUME_BUTTON_LABEL,
+  type BlockerType,
+} from "@/lib/generation/blocker-notes";
 
 export interface ChatInterfaceProps {
   /** See MessageInput. */
   onChatSubmit: () => void;
+  /**
+   * Deterministic blocker resume (2026-08-01, Chat/Plan Mode item 1).
+   * Called with the classified blocker type when the user clicks the
+   * resume button — see `handleResumeAfterBlocker` in Builder.tsx for
+   * the message it actually sends.
+   */
+  onResume: (blocker: BlockerType) => void;
 }
 
 export const ChatInterface = memo(function ChatInterface({
   onChatSubmit,
+  onResume,
 }: ChatInterfaceProps) {
   const generatedCode = useGenerationStore((s) => s.generatedCode);
   const setGeneratedCode = useGenerationStore((s) => s.setGeneratedCode);
@@ -42,16 +69,35 @@ export const ChatInterface = memo(function ChatInterface({
   const setSelectedFile = useGenerationStore((s) => s.setSelectedFile);
   const codeHistory = useGenerationStore((s) => s.codeHistory);
   const setCodeHistory = useGenerationStore((s) => s.setCodeHistory);
+  const chatHistory = useChatStore((s) => s.chatHistory);
   const setChatHistory = useChatStore((s) => s.setChatHistory);
   const generatedFiles = useGenerationStore((s) => s.generatedFiles);
   const scopedFilePath = useChatStore((s) => s.scopedFilePath);
   const setScopedFilePath = useChatStore((s) => s.setScopedFilePath);
+  const isGenerating = useGenerationStore((s) => s.isGenerating);
+  const chatMode = useGenerationStore((s) => s.chatMode);
+  const setChatMode = useGenerationStore((s) => s.setChatMode);
 
   const hasGeneratedCode = useMemo(
     () => generatedCode.length > 0,
     [generatedCode],
   );
   const canUndo = useMemo(() => codeHistory.length > 0, [codeHistory]);
+
+  // Resume affordance (2026-08-01): only the LAST message counts —
+  // once the user (or the model) has moved the conversation past the
+  // blocker, the button should disappear rather than stick around
+  // stale. Non-assistant last messages (e.g. the user already replied)
+  // correctly classify to null via classifyBlockerNote's exact-match
+  // check, no extra role guard needed.
+  const lastBlocker: BlockerType | null = useMemo(() => {
+    if (chatHistory.length === 0) return null;
+    return classifyBlockerNote(chatHistory[chatHistory.length - 1].content);
+  }, [chatHistory]);
+
+  const handleResumeClick = useCallback(() => {
+    if (lastBlocker !== null) onResume(lastBlocker);
+  }, [lastBlocker, onResume]);
 
   // Undo last change — pops the newest snapshot off the history stack
   // and restores it. Lifted verbatim from the legacy main component.
@@ -103,6 +149,36 @@ export const ChatInterface = memo(function ChatInterface({
       </div>
 
       {hasGeneratedCode && (
+        <div
+          className="flex gap-1 p-1 mb-3 bg-[#1a1a2e] rounded-lg border border-purple-500/20 self-start"
+          title="Build writes to your project. Plan only discusses it — nothing is changed."
+        >
+          <button
+            onClick={() => setChatMode("build")}
+            disabled={isGenerating}
+            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              chatMode === "build"
+                ? "bg-purple-500/40 text-purple-100"
+                : "text-purple-400/70 hover:text-purple-200"
+            }`}
+          >
+            Build
+          </button>
+          <button
+            onClick={() => setChatMode("plan")}
+            disabled={isGenerating}
+            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              chatMode === "plan"
+                ? "bg-orange-500/40 text-orange-100"
+                : "text-orange-400/70 hover:text-orange-200"
+            }`}
+          >
+            Plan
+          </button>
+        </div>
+      )}
+
+      {hasGeneratedCode && (
         <div className="flex items-center gap-2 mb-3">
           <FileCode2 className="w-4 h-4 text-purple-300 shrink-0" />
           <select
@@ -125,7 +201,26 @@ export const ChatInterface = memo(function ChatInterface({
 
       <MessageList />
 
-      {hasGeneratedCode && <MessageInput onChatSubmit={onChatSubmit} />}
+      {lastBlocker !== null && (
+        <button
+          onClick={handleResumeClick}
+          disabled={isGenerating}
+          className="mb-3 w-full px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {RESUME_BUTTON_LABEL}
+        </button>
+      )}
+
+      {hasGeneratedCode && (
+        <MessageInput
+          onChatSubmit={onChatSubmit}
+          placeholder={
+            chatMode === "plan"
+              ? "Ask a question or discuss a plan — nothing will be changed..."
+              : "Ask to modify the website..."
+          }
+        />
+      )}
     </div>
   );
 });

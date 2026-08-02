@@ -2,11 +2,18 @@
 
 /**
  * SettingsPanel — the Settings modal shell. Owns the backdrop, the
- * close button, and the composition of the eight section components:
- * ProviderToggle, OllamaSection, SamplingParams, SupabaseSection,
- * GithubSection, OpenRouterSection, SystemStatusList. (DangerZone was
- * retired in W4 — the localStorage snapshot it cleared no longer
- * exists; account deletion lives on /account.)
+ * close button, and the composition of the section components:
+ * ProviderToggle, OllamaSection, SamplingParams, SupabaseConnectSection,
+ * StripeConnectSection, GithubSection, OpenRouterSection,
+ * SystemStatusList. (DangerZone was retired in W4 — the localStorage
+ * snapshot it cleared no longer exists; account deletion lives on
+ * /account.)
+ *
+ * SupabaseConnectSection (2026-07-31) replaced the legacy
+ * `SupabaseSection` — that card saved a URL/key pair nobody read
+ * (confirmed dead by grep before retiring it); see
+ * PLAN/Feature-Connect-Your-Supabase.md. StripeConnectSection
+ * (2026-08-01) is new, no legacy equivalent existed.
  *
  * Reads `showSettings` from the UI store; closes via
  * `setShowSettings(false)`. All hooks are declared before the
@@ -22,7 +29,8 @@ import { useUiStore } from "@/lib/store/ui-store";
 import { ProviderToggle } from "@/components/settings/ProviderToggle";
 import { OllamaSection } from "@/components/settings/OllamaSection";
 import { SamplingParams } from "@/components/settings/SamplingParams";
-import { SupabaseSection } from "@/components/settings/SupabaseSection";
+import { SupabaseConnectSection } from "@/components/settings/SupabaseConnectSection";
+import { StripeConnectSection } from "@/components/settings/StripeConnectSection";
 import { GithubSection } from "@/components/settings/GithubSection";
 import { OpenRouterSection } from "@/components/settings/OpenRouterSection";
 import { SystemStatusList } from "@/components/settings/SystemStatusList";
@@ -53,7 +61,8 @@ export const SettingsPanel = memo(function SettingsPanel() {
             <OllamaSection />
             <OpenRouterSection />
             <SamplingParams />
-            <SupabaseSection />
+            <SupabaseConnectSection />
+            <StripeConnectSection />
             <GithubSection />
           </div>
 

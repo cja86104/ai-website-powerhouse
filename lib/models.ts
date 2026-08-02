@@ -29,7 +29,7 @@ export type CustomModelId = typeof CUSTOM_MODEL_ID;
  * Surfaced in the Settings UI so users can see how fresh the numbers are.
  * Format: ISO 8601 calendar date (YYYY-MM-DD).
  */
-export const PRICE_LIST_VERIFIED_AT = "2026-07-24";
+export const PRICE_LIST_VERIFIED_AT = "2026-07-31";
 
 /**
  * One entry in the curated OpenRouter model list.
@@ -78,6 +78,24 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     contextWindow: null,
   },
   {
+    id: "tencent/hy3",
+    shortLabel: "Hy3 — Sale price",
+    description:
+      "Tencent's 295B-parameter MoE model routed via DeepInfra. Configurable reasoning effort, 256K context. Today's discounted OpenRouter rate — reprice before relying on it long-term.",
+    inputPricePerMillion: 0.14,
+    outputPricePerMillion: 0.58,
+    contextWindow: 262144,
+  },
+  {
+    id: "openai/gpt-5.6-luna-pro",
+    shortLabel: "GPT-5.6 Luna Pro — Sale price",
+    description:
+      "GPT-5.6 Luna served in pro reasoning mode for higher-quality responses on complex tasks. Currently 50% off on OpenRouter — reprice before relying on it long-term.",
+    inputPricePerMillion: 0.1,
+    outputPricePerMillion: 0.6,
+    contextWindow: 1050000,
+  },
+  {
     id: "qwen/qwen3-coder-next",
     shortLabel: "Qwen3-Coder-Next — Cheap & coding-specialized",
     description:
@@ -94,6 +112,24 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     inputPricePerMillion: 0.3,
     outputPricePerMillion: 0.9,
     contextWindow: 256000,
+  },
+  {
+    id: "stepfun/step-3.7-flash",
+    shortLabel: "Step 3.7 Flash — Sale price",
+    description:
+      "StepFun's high-efficiency multimodal MoE model routed via DeepInfra. Selectable reasoning levels, 256K context. Today's discounted OpenRouter rate — reprice before relying on it long-term.",
+    inputPricePerMillion: 0.2,
+    outputPricePerMillion: 1.15,
+    contextWindow: 256000,
+  },
+  {
+    id: "minimax/minimax-m3",
+    shortLabel: "MiniMax M3 — Sale price",
+    description:
+      "MiniMax's 1M-context agentic/coding model using sparse attention for cheaper long-context runs. Currently 50% off on OpenRouter — reprice before relying on it long-term.",
+    inputPricePerMillion: 0.3,
+    outputPricePerMillion: 1.2,
+    contextWindow: 1048576,
   },
   {
     id: "qwen/qwen3.7-plus",
@@ -113,6 +149,24 @@ export const CURATED_OPENROUTER_MODELS: readonly CuratedModel[] = [
     outputPricePerMillion: 1.8,
     contextWindow: 256000,
     hostedSurcharge: 0.15,
+  },
+  {
+    id: "z-ai/glm-5.2",
+    shortLabel: "GLM 5.2 — Sale price",
+    description:
+      "Z.ai's large-scale reasoning model for long-horizon agent workflows and project-level engineering. Currently 46% off on OpenRouter — reprice before relying on it long-term.",
+    inputPricePerMillion: 0.7546,
+    outputPricePerMillion: 2.372,
+    contextWindow: 1048576,
+  },
+  {
+    id: "moonshotai/kimi-k2.6",
+    shortLabel: "Kimi K2.6 — Sale price",
+    description:
+      "Moonshot AI's coding and multi-agent orchestration model with a 262K context. Today's OpenRouter rate — reprice before relying on it long-term.",
+    inputPricePerMillion: 0.68,
+    outputPricePerMillion: 3.41,
+    contextWindow: 262144,
   },
   {
     id: "anthropic/claude-haiku-4.5",

@@ -58,11 +58,22 @@ Your FIRST emitted file must be this exact package.json — emit it verbatim, do
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@hookform/resolvers": "^5.5.0",
+    "@tanstack/react-query": "^5.101.0",
+    "date-fns": "^4.4.0",
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.553.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-router-dom": "^6.26.0"
+    "react-hook-form": "^7.83.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.26.0",
+    "recharts": "^3.10.0",
+    "zod": "^4.4.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
@@ -84,8 +95,18 @@ IMPORT WHITELIST — the ONLY imports allowed anywhere in the project:
 - "framer-motion" — USE IT: scroll-reveal sections, hover micro-interactions, page transitions; premium sites move
 - "lucide-react" — USE IT for all icons instead of hand-drawn SVGs
 - "react-router-dom" — for multi-page sites; ALWAYS use HashRouter (never BrowserRouter) so navigation works on any static host without server config
+- "@tanstack/react-query" — USE IT for data fetching with caching/polling/optimistic updates; create ONE QueryClient and wrap the app in QueryClientProvider in main.jsx
+- "zustand" — USE IT for state that needs to live outside one component tree: multi-step wizards, shopping carts, editors. Plain React hooks are still correct for state that lives in one component
+- "react-hook-form" — USE IT for any form with more than 2-3 fields; register inputs with useForm()
+- "zod" + "@hookform/resolvers" (only the "@hookform/resolvers/zod" subpath) — USE IT to define a validation schema and wire it into react-hook-form via zodResolver(schema)
+- "date-fns" — USE IT for date formatting/parsing/arithmetic; never hand-roll Date math
+- "react-markdown" — USE IT to render markdown content (blog posts, docs, long-form text) instead of dangerouslySetInnerHTML
+- "@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities" — USE IT for drag-and-drop: Kanban boards, sortable lists, task managers
+- "recharts" — USE IT for charts: LineChart, BarChart, PieChart, AreaChart, always inside ResponsiveContainer
+- "@supabase/supabase-js" — ONLY if the user's message contains a "SUPABASE BACKEND CONNECTED" block. If it does, import the ready-made client with import { supabase } from './lib/supabase' — never call createClient() yourself, never invent a URL or key, and add "@supabase/supabase-js": "^2.110.1" to package.json's dependencies. If that block is NOT present, do not import "@supabase/supabase-js" at all — there is no backend connected, build the feature with local React state instead
+- "@stripe/stripe-js" and "@stripe/react-stripe-js" — ONLY if the user's message contains a "STRIPE PAYMENTS CONNECTED" block. If it does, import the ready-made promise with import { stripePromise } from './lib/stripe', wrap checkout UI in <Elements stripe={stripePromise}> and build the form with <PaymentElement />/useStripe()/useElements() from "@stripe/react-stripe-js", add "@stripe/stripe-js": "^9.12.1" and "@stripe/react-stripe-js": "^6.8.0" to package.json's dependencies — and follow the block's instructions about the submit handler honestly needing a backend (never fake a successful charge). If that block is NOT present, do not import either package at all — there is no Stripe account connected
 - relative paths ("./Header", "../App.jsx", "./index.css")
-Importing ANY other package (react-scroll, axios, react-icons, styled-components, etc.) BREAKS THE BUILD — nothing else is installed. Build those behaviors yourself: smooth scrolling with element.scrollIntoView({ behavior: "smooth" }), data fetching with fetch(). Images: https://placehold.co URLs or CSS. State: React hooks only.
+Importing ANY other package (react-scroll, axios, react-icons, styled-components, stripe, etc.) BREAKS THE BUILD — nothing else is installed. Build those behaviors yourself: smooth scrolling with element.scrollIntoView({ behavior: "smooth" }), data fetching with fetch() (or react-query when caching/polling matters). Images: https://placehold.co URLs or CSS.
 
 TAILWIND RULES (this project uses the CDN, NOT the PostCSS pipeline):
 - Do NOT emit tailwind.config.js, tailwind.config.ts, or postcss.config.js — they do nothing here and will be removed

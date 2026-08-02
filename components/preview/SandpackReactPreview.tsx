@@ -70,15 +70,71 @@ function toSandpackFiles(
   return map;
 }
 
+/**
+ * Base quality-pack dependencies every react-vite preview gets.
+ * "@supabase/supabase-js" is deliberately NOT here — see the
+ * customSetup below for why it's added conditionally instead.
+ */
+const BASE_DEPENDENCIES: Record<string, string> = {
+  "@dnd-kit/core": "^6.3.1",
+  "@dnd-kit/sortable": "^10.0.0",
+  "@dnd-kit/utilities": "^3.2.2",
+  "@hookform/resolvers": "^5.5.0",
+  "@tanstack/react-query": "^5.101.0",
+  "date-fns": "^4.4.0",
+  "framer-motion": "^11.0.0",
+  "lucide-react": "^0.553.0",
+  "react-hook-form": "^7.83.0",
+  "react-markdown": "^10.1.0",
+  "react-router-dom": "^6.26.0",
+  "recharts": "^3.10.0",
+  "zod": "^4.4.0",
+  "zustand": "^5.0.14",
+};
+
+/** Must match lib/supabase-connect/actions.ts's saved connection version. */
+const SUPABASE_JS_VERSION = "^2.110.1";
+
+/** Stripe quality-pack versions (2026-08-01, Connect Your Stripe item 3). */
+const STRIPE_JS_VERSION = "^9.12.1";
+const REACT_STRIPE_JS_VERSION = "^6.8.0";
+
 export const SandpackReactPreview = memo(function SandpackReactPreview() {
   const generatedFiles = useGenerationStore((s) => s.generatedFiles);
   const showImageSlots = useUiStore((s) => s.showImageSlots);
   const projectId = useGenerationStore((s) => s.projectId);
+  // 2026-07-31 (Connect Your Supabase item 3): unlike every other
+  // package above, "@supabase/supabase-js" is only useful — and only
+  // meant to be imported — when this project actually has a saved
+  // connection (lib/prompts/supabase-block.ts gates the model on the
+  // same signal). Reading it live here means the preview picks it up
+  // the moment SupabaseConnectSection saves a connection, no reload
+  // needed, the same as the ChipRow/SystemStatusList wiring.
+  const supabaseConnected = useGenerationStore((s) => s.supabaseConnected);
+  // 2026-08-01 (Connect Your Stripe item 3): same live-toggle reasoning
+  // as supabaseConnected above — Stripe's UI packages only matter once
+  // this project has a saved publishable key.
+  const stripeConnected = useGenerationStore((s) => s.stripeConnected);
 
   const files = useMemo(
     () => toSandpackFiles(generatedFiles, showImageSlots),
     [generatedFiles, showImageSlots],
   );
+
+  const dependencies = useMemo(() => {
+    let deps = BASE_DEPENDENCIES;
+    if (supabaseConnected) {
+      deps = { ...deps, "@supabase/supabase-js": SUPABASE_JS_VERSION };
+    }
+    if (stripeConnected) {
+      deps = {
+        ...deps,
+        "@stripe/stripe-js": STRIPE_JS_VERSION,
+        "@stripe/react-stripe-js": REACT_STRIPE_JS_VERSION,
+      };
+    }
+    return deps;
+  }, [supabaseConnected, stripeConnected]);
 
   if (generatedFiles.length === 0) {
     return (
@@ -105,20 +161,24 @@ export const SandpackReactPreview = memo(function SandpackReactPreview() {
         // built earlier. Keying on projectId forces a full remount
         // whenever the actual project changes, while edits within the
         // same project (same id) keep using the fast hot-reload path.
-        key={projectId ?? "no-project"}
+        // Also keyed on supabaseConnected (2026-07-31) and stripeConnected
+        // (2026-08-01): customSetup dependencies are only read by
+        // Sandpack on mount/key-change, so connecting/disconnecting
+        // Supabase or Stripe mid-session — without switching projects —
+        // needs the same forced remount to pick up (or drop) their
+        // packages.
+        key={`${projectId ?? "no-project"}-${supabaseConnected ? "sb" : "nosb"}-${stripeConnected ? "st" : "nost"}`}
         template="vite-react"
         files={files}
         theme="dark"
-        // Quality-pack runtime deps (2026-07-12): merged into the
-        // TEMPLATE's dependency set — unlike overriding package.json,
-        // this cannot replace the toolchain that broke under vite 5.
-        // Must match the scaffold's package.json versions.
+        // Quality-pack runtime deps (2026-07-12, expanded 2026-07-31):
+        // merged into the TEMPLATE's dependency set — unlike overriding
+        // package.json, this cannot replace the toolchain that broke
+        // under vite 5. Must match the scaffold's package.json versions.
+        // "@supabase/supabase-js" and the Stripe pair ride along ONLY
+        // for connected projects — see the `dependencies` useMemo above.
         customSetup={{
-          dependencies: {
-            "framer-motion": "^11.0.0",
-            "lucide-react": "^0.553.0",
-            "react-router-dom": "^6.26.0",
-          },
+          dependencies,
         }}
         options={{
           // Re-init the provider when the file set changes shape so

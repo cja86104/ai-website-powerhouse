@@ -33,11 +33,22 @@ const REACT_PACKAGE_JSON = `{
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@hookform/resolvers": "^5.5.0",
+    "@tanstack/react-query": "^5.101.0",
+    "date-fns": "^4.4.0",
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.553.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-router-dom": "^6.26.0"
+    "react-hook-form": "^7.83.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.26.0",
+    "recharts": "^3.10.0",
+    "zod": "^4.4.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",

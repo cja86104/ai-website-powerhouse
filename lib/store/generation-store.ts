@@ -20,6 +20,15 @@ import type { GeneratedFile } from "@/lib/generation/types";
 /** Output framework for the active project (mirrors projects.framework). */
 export type ProjectFramework = "react-vite" | "html";
 
+/**
+ * Chat/Plan mode (2026-08-01, Chat/Plan Mode work-plan item 3,
+ * PLAN/Feature-Chat-Plan-Mode.md §7 decision 1). "build" is today's
+ * unchanged behavior — every chat-panel send goes through
+ * `handleChatModify`'s file-delta contract. "plan" is strictly
+ * read + discuss — see `lib/prompts/plan-mode-prompt.ts`.
+ */
+export type ChatMode = "build" | "plan";
+
 /** Snapshot used by the undo stack. */
 export interface CodeHistoryEntry {
   files: GeneratedFile[];
@@ -55,6 +64,28 @@ export interface GenerationState {
   framework: ProjectFramework;
   setFramework: (value: ProjectFramework) => void;
 
+  /**
+   * Whether the active project has a saved Supabase connection
+   * (2026-07-31, Connect Your Supabase — PLAN/Feature-Connect-Your-Supabase.md).
+   * Loaded with the workspace (lib/projects/actions.ts WorkspacePayload)
+   * and updated live by SupabaseConnectSection after a save/clear, so
+   * ChipRow/SystemStatusList never need their own fetch. Boolean only
+   * — the URL/anon key themselves are loaded on demand by the Settings
+   * card via lib/supabase-connect/actions.ts, never cached here.
+   */
+  supabaseConnected: boolean;
+  setSupabaseConnected: (value: boolean) => void;
+
+  /**
+   * Whether the active project has a saved Stripe connection
+   * (2026-08-01, Connect Your Stripe — mirrors supabaseConnected
+   * exactly). Publishable key only; never a secret key. Loaded with the
+   * workspace and updated live by StripeConnectSection after a
+   * save/clear.
+   */
+  stripeConnected: boolean;
+  setStripeConnected: (value: boolean) => void;
+
   prompt: string;
   setPrompt: (value: string) => void;
 
@@ -77,6 +108,16 @@ export interface GenerationState {
 
   generationStats: GenerationStats | null;
   setGenerationStats: (value: GenerationStats | null) => void;
+
+  /**
+   * Which contract the next chat-panel send uses (2026-08-01). Reset
+   * to "build" on every project load and on New Project — same
+   * per-project-generation-state posture as `scopedFilePath` in
+   * `chat-store.ts` (never persisted, never carries across projects,
+   * so nobody gets stuck unable to build).
+   */
+  chatMode: ChatMode;
+  setChatMode: (value: ChatMode) => void;
 }
 
 export const useGenerationStore = create<GenerationState>()((set) => ({
@@ -87,6 +128,12 @@ export const useGenerationStore = create<GenerationState>()((set) => ({
 
   framework: "react-vite",
   setFramework: (value) => set({ framework: value }),
+
+  supabaseConnected: false,
+  setSupabaseConnected: (value) => set({ supabaseConnected: value }),
+
+  stripeConnected: false,
+  setStripeConnected: (value) => set({ stripeConnected: value }),
 
   prompt: "",
   setPrompt: (value) => set({ prompt: value }),
@@ -112,4 +159,7 @@ export const useGenerationStore = create<GenerationState>()((set) => ({
 
   generationStats: null,
   setGenerationStats: (value) => set({ generationStats: value }),
+
+  chatMode: "build",
+  setChatMode: (value) => set({ chatMode: value }),
 }));

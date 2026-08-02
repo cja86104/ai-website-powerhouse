@@ -1,35 +1,38 @@
 /**
  * AI Website Powerhouse — third-party integrations store.
  *
- * Holds the legacy Supabase URL/key pair and the legacy GitHub PAT
- * credentials used by the in-browser GitHub API calls. Both blocks are
- * scheduled for removal/replacement in NEXT phase:
- *  - Supabase URL/key UI is removed in W4 NOW Tier 3.
- *  - GitHub PAT path coexists with the GitHub-App OAuth flow in NEXT
- *    until LATER+ when PAT support is dropped.
+ * Holds the legacy GitHub PAT credentials used by the in-browser
+ * GitHub API calls. Coexists with the GitHub-App OAuth flow in NEXT
+ * until LATER+ when PAT support is dropped.
+ *
+ * The legacy Supabase URL/key trio (supabaseUrl/supabaseKey/
+ * supabaseEnabled) was retired 2026-07-31 — it saved a pair nobody
+ * read (confirmed dead by grep: zero wiring into any prompt builder or
+ * generation path, only two decorative status-dot consumers) and is
+ * replaced by the real, PROJECT-scoped connection in
+ * `lib/supabase-connect/actions.ts` + `generation-store`'s
+ * `supabaseConnected` (see PLAN/Feature-Connect-Your-Supabase.md).
+ * `lib/store/migrate-legacy-localstorage.ts` still WRITES those three
+ * keys for the one-time pre-Zustand-refactor migration path (its own
+ * local, decoupled type) — left alone deliberately: Zustand's persist
+ * `partialize` below simply ignores JSON keys it no longer declares,
+ * so old localStorage payloads are harmless, and that migration ran
+ * for every active user many months ago.
  *
  * Persistence key: `aiwp-integrations-v1`. Hydration is deferred via
  * `skipHydration: true` so the wrapping `<HydrationGate>` can run the
  * legacy-localStorage migration first.
  *
- * The `enabled` booleans are derived from "user supplied a key/token"
- * but are persisted as explicit state to preserve the legacy behavior
- * (they get flipped to `true` when the user clicks "Save" in the
- * Settings panel, not when typing).
+ * The `enabled` boolean is derived from "user supplied a token" but is
+ * persisted as explicit state to preserve the legacy behavior (it gets
+ * flipped to `true` when the user clicks "Save" in the Settings panel,
+ * not when typing).
  */
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 export interface IntegrationsState {
-  // Supabase
-  supabaseUrl: string;
-  setSupabaseUrl: (value: string) => void;
-  supabaseKey: string;
-  setSupabaseKey: (value: string) => void;
-  supabaseEnabled: boolean;
-  setSupabaseEnabled: (value: boolean) => void;
-
   // GitHub (legacy PAT path)
   githubUsername: string;
   setGithubUsername: (value: string) => void;
@@ -40,9 +43,6 @@ export interface IntegrationsState {
 }
 
 interface IntegrationsPersistedSlice {
-  supabaseUrl: string;
-  supabaseKey: string;
-  supabaseEnabled: boolean;
   githubUsername: string;
   githubToken: string;
   githubEnabled: boolean;
@@ -51,13 +51,6 @@ interface IntegrationsPersistedSlice {
 export const useIntegrationsStore = create<IntegrationsState>()(
   persist(
     (set) => ({
-      supabaseUrl: "",
-      setSupabaseUrl: (value) => set({ supabaseUrl: value }),
-      supabaseKey: "",
-      setSupabaseKey: (value) => set({ supabaseKey: value }),
-      supabaseEnabled: false,
-      setSupabaseEnabled: (value) => set({ supabaseEnabled: value }),
-
       githubUsername: "",
       setGithubUsername: (value) => set({ githubUsername: value }),
       githubToken: "",
@@ -71,9 +64,6 @@ export const useIntegrationsStore = create<IntegrationsState>()(
       skipHydration: true,
       version: 1,
       partialize: (state): IntegrationsPersistedSlice => ({
-        supabaseUrl: state.supabaseUrl,
-        supabaseKey: state.supabaseKey,
-        supabaseEnabled: state.supabaseEnabled,
         githubUsername: state.githubUsername,
         githubToken: state.githubToken,
         githubEnabled: state.githubEnabled,

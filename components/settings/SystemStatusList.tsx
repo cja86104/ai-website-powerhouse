@@ -7,9 +7,13 @@
  * Group G (G-1..G-7).
  *
  * Reads the provider from the settings store, the server-key probe
- * result from the UI store, and the two integration flags from the
- * integrations store. No props — the legacy `systemStatus` memo on
- * the main component is retired with this extraction.
+ * result from the UI store, GitHub enablement from the integrations
+ * store, and the ACTIVE PROJECT'S real Supabase + Stripe connection
+ * state from generation-store (2026-07-31 / 2026-08-01 — previously a
+ * dead, always-false legacy Supabase flag; see
+ * PLAN/Feature-Connect-Your-Supabase.md). No props — the legacy
+ * `systemStatus` memo on the main component is retired with this
+ * extraction.
  *
  * Extracted from `components/AIWebsitePowerhouse.js` in W1 PR-4.
  */
@@ -17,6 +21,7 @@
 import { memo } from "react";
 import { useSettingsStore } from "@/lib/store/settings-store";
 import { useIntegrationsStore } from "@/lib/store/integrations-store";
+import { useGenerationStore } from "@/lib/store/generation-store";
 import { useUiStore } from "@/lib/store/ui-store";
 
 export const SystemStatusList = memo(function SystemStatusList() {
@@ -24,7 +29,8 @@ export const SystemStatusList = memo(function SystemStatusList() {
   const openrouterServerAvailable = useUiStore(
     (s) => s.openrouterServerAvailable,
   );
-  const supabaseEnabled = useIntegrationsStore((s) => s.supabaseEnabled);
+  const supabaseConnected = useGenerationStore((s) => s.supabaseConnected);
+  const stripeConnected = useGenerationStore((s) => s.stripeConnected);
   const githubEnabled = useIntegrationsStore((s) => s.githubEnabled);
 
   return (
@@ -61,10 +67,18 @@ export const SystemStatusList = memo(function SystemStatusList() {
         </div>
         <div className="flex items-center gap-2">
           <div
-            className={`w-3 h-3 rounded-full ${supabaseEnabled ? "bg-green-500" : "bg-gray-500"}`}
+            className={`w-3 h-3 rounded-full ${supabaseConnected ? "bg-green-500" : "bg-gray-500"}`}
           ></div>
           <span className="text-orange-200">
-            Supabase: {supabaseEnabled ? "Connected" : "Disabled"}
+            Supabase: {supabaseConnected ? "Connected" : "Disabled"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div
+            className={`w-3 h-3 rounded-full ${stripeConnected ? "bg-green-500" : "bg-gray-500"}`}
+          ></div>
+          <span className="text-orange-200">
+            Stripe: {stripeConnected ? "Connected" : "Disabled"}
           </span>
         </div>
         <div className="flex items-center gap-2">

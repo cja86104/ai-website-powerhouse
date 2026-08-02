@@ -54,6 +54,10 @@ export interface WorkspacePayload {
   chatHistory: WorkspaceMessage[];
   /** Latest complete generation id (parent for the next modify). */
   latestGenerationId: string | null;
+  /** Whether this project has a saved Supabase connection (2026-07-31). */
+  supabaseConnected: boolean;
+  /** Whether this project has a saved Stripe connection (2026-08-01). */
+  stripeConnected: boolean;
 }
 
 /** Inputs persisted after a completed generation round. */
@@ -147,7 +151,9 @@ export async function loadWorkspace(
   if (requestedProjectId !== undefined) {
     const { data: requested, error: requestedError } = await supabase
       .from("projects")
-      .select("id, name, framework, archived")
+      .select(
+        "id, name, framework, archived, supabase_project_url, stripe_publishable_key_encrypted",
+      )
       .eq("id", requestedProjectId)
       .maybeSingle();
     if (requestedError !== null) {
@@ -167,13 +173,17 @@ export async function loadWorkspace(
       requested.id as string,
       requested.name as string,
       requested.framework === "react-vite" ? "react-vite" : "html",
+      requested.supabase_project_url !== null,
+      requested.stripe_publishable_key_encrypted !== null,
     );
   }
 
   // Fetch-or-create the implicit project (newest non-archived).
   const { data: existing, error: projectError } = await supabase
     .from("projects")
-    .select("id, name, framework")
+    .select(
+      "id, name, framework, supabase_project_url, stripe_publishable_key_encrypted",
+    )
     .eq("archived", false)
     .order("updated_at", { ascending: false })
     .limit(1);
@@ -184,11 +194,15 @@ export async function loadWorkspace(
   let projectId: string;
   let projectName: string;
   let framework: ProjectFramework;
+  let supabaseConnected: boolean;
+  let stripeConnected: boolean;
   if (existing !== null && existing.length > 0) {
     projectId = existing[0].id as string;
     projectName = existing[0].name as string;
     framework =
       existing[0].framework === "react-vite" ? "react-vite" : "html";
+    supabaseConnected = existing[0].supabase_project_url !== null;
+    stripeConnected = existing[0].stripe_publishable_key_encrypted !== null;
   } else {
     // New projects default to React + Vite (Section 5 §3) since W5.
     const { data: created, error: createError } = await supabase
@@ -206,9 +220,18 @@ export async function loadWorkspace(
     projectId = created.id as string;
     projectName = created.name as string;
     framework = "react-vite";
+    supabaseConnected = false;
+    stripeConnected = false;
   }
 
-  return loadWorkspaceForProject(supabase, projectId, projectName, framework);
+  return loadWorkspaceForProject(
+    supabase,
+    projectId,
+    projectName,
+    framework,
+    supabaseConnected,
+    stripeConnected,
+  );
 }
 
 /**
@@ -220,6 +243,8 @@ async function loadWorkspaceForProject(
   projectId: string,
   projectName: string,
   framework: ProjectFramework,
+  supabaseConnected: boolean,
+  stripeConnected: boolean,
 ): Promise<WorkspacePayload> {
   // Latest complete generation, if any.
   const { data: generations, error: genError } = await supabase
@@ -274,6 +299,8 @@ async function loadWorkspaceForProject(
     generatedCode: joinFiles(files, framework),
     chatHistory,
     latestGenerationId,
+    supabaseConnected,
+    stripeConnected,
   };
 }
 

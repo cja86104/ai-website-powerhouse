@@ -23,10 +23,18 @@ import { useGenerationStore } from "@/lib/store/generation-store";
 export interface MessageInputProps {
   /** Submits the current draft as a modify request. */
   onChatSubmit: () => void;
+  /**
+   * Input placeholder text. Optional so existing/future callers keep
+   * working without changes; ChatInterface passes a mode-aware string
+   * (2026-08-01, Chat/Plan Mode item 3) so the input itself signals
+   * whether the next send will change files or just discuss.
+   */
+  placeholder?: string;
 }
 
 export const MessageInput = memo(function MessageInput({
   onChatSubmit,
+  placeholder = "Ask to modify the website...",
 }: MessageInputProps) {
   const chatMessage = useChatStore((s) => s.chatMessage);
   const setChatMessage = useChatStore((s) => s.setChatMessage);
@@ -44,7 +52,7 @@ export const MessageInput = memo(function MessageInput({
           chatMessage.trim() &&
           onChatSubmit()
         }
-        placeholder="Ask to modify the website..."
+        placeholder={placeholder}
         className="flex-1 px-4 py-3 bg-[#1a1a2e] border border-purple-500/30 rounded-lg text-purple-100 placeholder-purple-400/50 focus:outline-none focus:border-purple-500/50"
       />
       <button
